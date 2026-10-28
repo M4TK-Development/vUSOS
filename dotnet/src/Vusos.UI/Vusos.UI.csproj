@@ -4,14 +4,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>Vusos.UI</RootNamespace>
   </PropertyGroup>
-
 
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="AngleSharp" Version="1.8.6" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.13" />
   </ItemGroup>
 
