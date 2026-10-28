@@ -89,6 +89,8 @@ public sealed class UniversityOptions
     public string NativeScheme { get; set; } = "vusos";
     /// <summary>Adres Vusos.Server (podpisywanie OAuth USOS). Pusty = podpisywanie lokalne consumer key/secret z konfiguracji.</summary>
     public string? SigningServerUrl { get; set; }
+    /// <summary>Opcjonalny X-Vusos-App-Key wymagany przez Vusos.Server.</summary>
+    public string? SigningServerAppKey { get; set; }
     public string? UsosConsumerKey { get; set; }
     public string? UsosConsumerSecret { get; set; }
     public string[] AllowedEmailDomains { get; set; } = ["vistula.edu.pl", "stu.vistula.edu.pl"];
