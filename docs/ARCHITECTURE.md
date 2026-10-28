@@ -1,137 +1,122 @@
-# vUSOS — architektura
+# vUSOS — architektura (v2, .NET)
 
-Jednolita platforma studenta Vistula: dane z **USOSweb** (dziekanat: oceny, opłaty, plan, wiadomości, ogłoszenia)
-i **Platon** (Moodle: kursy, materiały, zadania, terminy) w jednym UI. Logowanie kontem M365 uczelni.
+Jednolita platforma studenta Vistula: **USOSweb** (dziekanat: oceny, opłaty, plan, wiadomości, ogłoszenia) i **Platon**
+(Moodle: kursy, materiały, zadania, terminy, testy) w jednej aplikacji na telefon, tablet i komputer. Logowanie kontem
+M365 uczelni. Dane trzymane lokalnie: działa offline i przy przeciążeniu Platona.
+
+Stos: C# / .NET 10. Aplikacja **.NET MAUI Blazor Hybrid** (iOS, Android, Windows, macOS), wersja przeglądarkowa
+**Blazor Server** (ten sam UI), biblioteka **Vusos.Core** (cała logika), minimalny **ASP.NET Core** serwer do
+podpisywania OAuth USOS. Żadnego PHP po naszej stronie; `kontroler.php`, `launch.php` itd. to adresy w systemach uczelni.
+
+Prototyp TypeScript z pierwszej iteracji leży w `reference/ts-prototype/` i jest specyfikacją wykonawczą
+(adaptery + fixture'y + ~140 testów). Port 1:1 do C#.
 
 ## Ograniczenia wyjściowe (end-user only)
 
-Mamy wyłącznie uprawnienia studenta. Nie ma dostępu admina do USOS, Moodle ani tenantu Entra ID uczelni.
-Wnioski projektowe:
+1. **Jeden token M365 nie otwiera USOSweb i Platona.** Entra ID jest tylko IdP; oba systemy mają własne sesje/tokeny.
+   Logowanie M365 w aplikacji (MSAL.NET, public client, multi-tenant app w tenancie M4TK) daje tożsamość i filtr
+   domeny (`*.vistula.edu.pl`). Do systemów aplikacja podłącza się osobno, po jednym kliknięciu każdy; cookie SSO Entra
+   w przeglądarce systemowej sprawia, że kolejne logowania są bezklikowe.
+2. **USOS, tryb preferowany: USOS API (OAuth 1.0a)**, metody `users/user`, `tt/user`, `grades/terms2`,
+   `payments/user_payments`, `courses/user`, `terms/search`, `mailclient/*`, `news/*`, `fac/faculty`. Consumer key
+   rejestruje się samoobsługowo na `/developers/` instalacji. Podpisywanie HMAC-SHA1 wymaga consumer secret, więc
+   produkcyjnie podpisuje **Vusos.Server** (proxy, nic nie przechowuje); do użytku własnego można wpisać consumer
+   key/secret w konfiguracji aplikacji i podpisywać lokalnie. `USOS_API_BASE_URL` do potwierdzenia dla Vistula.
+3. **USOS, fallback: tryb `web`.** Cookies sesji USOSweb + parsowanie HTML (AngleSharp). Selektory niezweryfikowane
+   bez dostępu do portalu; parsery defensywne.
+4. **Platon, tryb preferowany: Moodle Web Services** (`webservice/rest/server.php`, `wstoken`). Token dla konta OIDC
+   przez flow aplikacji mobilnej: `admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=…&urlscheme=vusos`
+   → po SSO M365 Moodle przekierowuje na `vusos://token=BASE64(siteid:::token:::privatetoken)` → aplikacja łapie deep
+   link. Jeśli admin wymusił `forcedurlscheme`, zostaje wklejenie tokenu.
+5. **Platon, fallback: tryb `web`.** Cookie `MoodleSession` + `sesskey` → `lib/ajax/service.php` z tymi samymi
+   funkcjami WS. Jedna warstwa funkcji, dwa transporty.
+6. **Tryb `mock`** obu adapterów: deterministyczne dane, dev/testy/demo bez dostępu do uczelni.
 
-1. **Nie istnieje jeden token M365 otwierający USOSweb i Platon.** Oba systemy akceptują tylko własne sesje
-   (USOSweb: sesja PHP po SSO; Moodle: `MoodleSession` lub token web services). Entra ID jest tylko IdP.
-   Dlatego logowanie M365 do aplikacji daje *tożsamość* (kto to jest, czy to konto `*.vistula.edu.pl`),
-   a do systemów dziedzinowych aplikacja podłącza się osobno, jednym kliknięciem każdy — dzięki SSO w przeglądarce
-   (cookie Entra "keep me signed in") drugie i trzecie logowanie są praktycznie bezklikowe.
-2. **USOS — tryb preferowany: USOS API (OAuth 1.0a).** Każda instalacja USOS wystawia USOS API
-   (`/services/...`), a consumer key rejestruje się samoobsługowo na `/developers/`. Autoryzacja użytkownika
-   odbywa się przez przeglądarkę (`services/oauth/authorize`) → przekierowanie do logowania USOSweb (SSO M365)
-   → callback z verifierem. Scope `offline_access` daje token długoterminowy. Metody: `users/user`, `tt/user`,
-   `grades/terms2`, `payments/user_payments`, `mailclient/*`, `news/*`, `courses/user`, `terms/search`.
-   Adres instalacji dla Vistula jest konfigurowalny (`USOS_API_BASE_URL`); jeśli uczelnia nie wystawia API
-   publicznie, fallback poniżej.
-3. **USOS — fallback: tryb `web`.** Adapter pracujący na cookies sesji USOSweb (parsowanie HTML `kontroler.php`).
-   Cookies dostarcza rozszerzenie przeglądarki (connector) lub użytkownik ręcznie. Wrażliwy na zmiany HTML,
-   dlatego osobny moduł z fixture'ami.
-4. **Platon — tryb preferowany: Moodle Web Services (`webservice/rest/server.php`, `wstoken`).** Token dla konta
-   OIDC uzyskuje się flow'em aplikacji mobilnej (`admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=…`),
-   który po SSO przekierowuje na `moodlemobile://token=BASE64(passport:::token:::privatetoken)`. Aplikacja
-   webowa nie przechwyci tego schematu, więc token wkleja użytkownik albo łapie go connector (rozszerzenie).
-5. **Platon — fallback: tryb `web`.** Cookie `MoodleSession` + `sesskey` → wywołania `lib/ajax/service.php`
-   z tymi samymi funkcjami WS (`core_course_get_enrolled_courses_by_timeline_classification`,
-   `core_course_get_contents`, `core_calendar_get_action_events_by_timesort`, `mod_assign_get_assignments`,
-   `gradereport_user_get_grade_items`, `core_webservice_get_site_info`). Jedna warstwa funkcji, dwa transporty.
-6. **Tryb `mock`** dla obu adapterów — deterministyczne fixture'y, do dev/testów i demo bez dostępu do uczelni.
+## Offline i przeciążenie
+
+- **Cache każdej odpowiedzi** (SQLite, JSON + czas pobrania). Strategia: świeże < `FreshFor` → z cache; starsze → próba
+  sieci z `LiveTimeout`; błąd/timeout/5xx → dane z cache z oznaczeniem `DataOrigin.Cache` i czasem. Linki wykładowców
+  (moduły `url`, `resource`, `folder`) są w cache treści kursu, więc działają, gdy Platon leży; linki zewnętrzne otwiera
+  przeglądarka, pliki wewnętrzne serwowane z dysku, jeśli pobrane.
+- **Materiały offline**: kolejka pobrań (plik / cały kurs), pliki w `MaterialsDirectory/{courseId}/{moduleId}/`,
+  rekordy w SQLite, wznawianie, limit na sieci komórkowej (opcja). Otwieranie systemową przeglądarką plików.
+- **Testy (mod_quiz)**: `mod_quiz_get_quizzes_by_courses`, `get_user_attempts`, `start_attempt`, `get_attempt_data`
+  (wszystkie strony), `save_attempt`, `process_attempt`, `get_attempt_review`. Offline możliwe tylko dla quizów z
+  `allowofflineattempts=1` (ustawienie wykładowcy) i tylko po rozpoczęciu podejścia online. Odpowiedzi trzymane lokalnie,
+  kolejka `process_attempt(finish)` synchronizowana po powrocie sieci. Limit czasu quizu liczony lokalnie. Rendering:
+  HTML pytań z Moodle w komponencie z interop JS zbierającym pola formularza `q{usage}:{slot}_*`.
+- **Aplikacja startuje offline**: ostatni dashboard, plan, oceny, kursy i materiały z lokalnej bazy.
 
 ## Komponenty
 
 ```
-apps/api        Fastify (Node 22, TS) — BFF: auth M365 (OIDC), magazyn poświadczeń (SQLite przez wbudowany `node:sqlite`, AES-256-GCM),
-                adaptery USOS/Platon, cache, agregacja dashboardu, proxy pobierania plików.
-apps/web        React + Vite + TS, Tailwind, TanStack Query, react-router. Jeden kod UI dla wszystkich platform.
-apps/mobile     Capacitor 6: iOS + Android (telefon i tablet), ładuje build apps/web, rejestruje schemat vusos://.
-apps/desktop    Tauri 2: Windows / macOS / Linux, ten sam build apps/web, deep link vusos:// (tauri-plugin-deep-link).
-packages/shared Model domenowy (zod) + interfejsy adapterów. Jedyne źródło prawdy dla typów.
+dotnet/src/Vusos.Core      domena, adaptery (USOS api/web/mock, Platon ws/web/mock), cache, materiały, testy offline,
+                           agregacja dashboardu; zależności: Microsoft.Data.Sqlite, AngleSharp. Zero UI, zero MAUI.
+dotnet/src/Vusos.UI        Razor Class Library: wszystkie strony i komponenty (Blazor), PL, responsywne.
+dotnet/src/Vusos.App       .NET MAUI Blazor Hybrid: iOS/Android/Windows/macOS; deep link vusos://, MSAL, SecureStorage.
+dotnet/src/Vusos.WebHost   Blazor Server hostujący Vusos.UI w przeglądarce (poświadczenia per circuit, cache per użytkownik).
+dotnet/src/Vusos.Server    ASP.NET Core minimal API: OAuth 1.0a USOS (request/access token, proxy podpisujący).
+dotnet/tests/*             xUnit; fixture'y JSON/HTML skopiowane z reference/ts-prototype.
 ```
 
-## Klienci natywni (telefon, tablet, komputer)
-
-- Jeden frontend React, trzy powłoki: przeglądarka/PWA, Capacitor (iOS, Android), Tauri (desktop). UI responsywne:
-  dolna nawigacja na telefonie, sidebar od szerokości tabletu, safe-area insets.
-- Klient natywny rozmawia z BFF po HTTPS (`VITE_API_BASE_URL`), uwierzytelnia się **bearer tokenem** zamiast cookie
-  (token w Keychain/Keystore przez Capacitor Preferences/SecureStorage, na desktopie w magazynie Tauri).
-- Logowanie natywne: aplikacja otwiera systemową przeglądarkę na `/api/auth/login?client=native` → Entra → BFF
-  wystawia jednorazowy kod i przekierowuje na `vusos://auth?code=…` → aplikacja wymienia kod na token
-  (`POST /api/auth/native/exchange`).
-- **Platon jednym kliknięciem**: aplikacja otwiera `admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=…&urlscheme=vusos`;
-  Moodle po SSO M365 przekierowuje na `vusos://token=BASE64(passport:::token:::privatetoken)`, aplikacja łapie
-  deep link i zapisuje token w BFF. Bez wklejania. (Jeśli admin wymusił `forcedurlscheme`, zostaje tryb wklejania.)
-- **USOS jednym kliknięciem**: OAuth 1.0a w systemowej przeglądarce; callback BFF przekierowuje na
-  `vusos://connected?system=usos`.
-- Schemat `vusos://` rejestrują: Capacitor (Info.plist `CFBundleURLTypes`, Android `intent-filter`), Tauri
-  (`tauri-plugin-deep-link`). Na iOS dodatkowo możliwe Universal Links, nieobowiązkowe.
-
-## Auth aplikacji (M365)
-
-- OIDC przez `@azure/msal-node`, app registration **multi-tenant** w tenancie M4TK (nie wymaga admina Vistula;
-  wymaga tylko, by tenant Vistula pozwalał użytkownikom na consent `openid profile email` — domyślnie tak).
-- Po zalogowaniu weryfikujemy `tid` ∈ `ALLOWED_TENANT_IDS` lub domenę e-mail ∈ `ALLOWED_EMAIL_DOMAINS`.
-- Sesja aplikacji: cookie HttpOnly, SameSite=Lax, podpisane (`@fastify/secure-session`).
-- Tryb `AUTH_MODE=dev` — logowanie bez Entra (formularz z e-mailem) do pracy lokalnej.
-
-## Bezpieczeństwo poświadczeń
-
-- Tabela `connections(user_id, system, mode, payload_enc, status, updated_at)`; `payload_enc` = AES-256-GCM
-  kluczem `CREDENTIALS_KEY` (32 B, base64). Klucz nie leży w bazie.
-- BFF nigdy nie przyjmuje hasła do USOS/Platon. Tylko tokeny OAuth / cookies sesji / wstoken.
-- Każdy użytkownik widzi wyłącznie swoje dane; brak kont współdzielonych; brak zapisu treści z systemów
-  dziedzinowych poza cache w pamięci (TTL).
-
-## REST API BFF (prefiks `/api`)
+### Vusos.Core — struktura
 
 ```
-GET  /auth/login            → redirect do Entra (lub formularz dev)
-GET  /auth/callback
-POST /auth/logout
-GET  /me                    → { user, connections: {usos, platon} }
-
-GET  /connections                       → statusy
-POST /connections/usos/oauth/start      → { authorizeUrl }
-GET  /connections/usos/oauth/callback   → zapis tokenu, redirect do /settings
-POST /connections/usos/web              → { cookies }               (fallback)
-POST /connections/platon/ws             → { wstoken, privateToken? } (token z launch.php lub connector)
-POST /connections/platon/web            → { cookies, sesskey }      (fallback)
-DELETE /connections/:system
-
-GET  /dashboard
-GET  /usos/profile | /usos/terms | /usos/courses?term= | /usos/timetable?from=&to=
-GET  /usos/grades?term= | /usos/payments | /usos/messages | /usos/messages/:id
-POST /usos/messages       { to[], subject, body }
-GET  /usos/contacts | /usos/announcements
-GET  /platon/courses | /platon/courses/:id/contents | /platon/assignments | /platon/events?days=
-GET  /platon/courses/:id/grades | /platon/announcements
-GET  /platon/file?url=     → strumień pliku przez BFF (dokleja token/cookies)
+Domain/            rekordy domenowe (Usos.cs, Platon.cs, Dashboard.cs, Common.cs)
+Adapters/          IUsosAdapter, IPlatonAdapter, Credentials (polimorficzne JSON), Errors
+Adapters/Usos/     UsosApiClient (podpisywanie przez IUsosRequestSigner: LocalSigner | RemoteSigner), UsosApiAdapter,
+                   UsosWebAdapter + Parsers (AngleSharp), UsosMockAdapter, Mappers, Raw DTO (System.Text.Json)
+Adapters/Platon/   IMoodleTransport (WsTransport, AjaxTransport), PlatonFunctions (IPlatonAdapter nad transportem),
+                   PlatonMockAdapter, MobileLaunchToken (parser), Raw DTO
+Offline/           ICacheStore/IMaterialStore/IQuizOfflineStore (kontrakty) + SqliteStores (implementacja)
+Services/          IConnectionManager, ISyncStatus, IMaterialService, IQuizService, IDashboardService (kontrakty),
+                   CachedUsosAdapter / CachedPlatonAdapter (dekoratory stale-while-revalidate), implementacje
+Platform/          ISecureStore, IConnectivity, IAppPaths, IClock (implementacje w App / WebHost)
+DependencyInjection.cs   AddVusosCore(IServiceCollection, Action<UniversityOptions>, Action<CacheOptions>)
 ```
 
-Błędy: `401` brak sesji aplikacji, `409 { code: "NOT_CONNECTED", system }`, `424 { code: "ADAPTER_AUTH", system }`
-gdy sesja w systemie dziedzinowym wygasła (UI pokazuje "Połącz ponownie").
-
-## Konfiguracja (`apps/api/.env.example`)
+### Vusos.Server — API
 
 ```
-PORT=3001
-PUBLIC_URL=http://localhost:3001
-WEB_ORIGIN=http://localhost:5173
-SESSION_SECRET=            # >=32 znaki
-CREDENTIALS_KEY=           # base64, 32 bajty
-DATABASE_PATH=./data/vusos.sqlite
-AUTH_MODE=dev|entra
-ENTRA_CLIENT_ID=
-ENTRA_CLIENT_SECRET=
-ENTRA_AUTHORITY=https://login.microsoftonline.com/organizations
-ALLOWED_EMAIL_DOMAINS=vistula.edu.pl,stu.vistula.edu.pl
-ALLOWED_TENANT_IDS=
-USOS_API_BASE_URL=https://usosapps.vistula.edu.pl/     # do potwierdzenia
-USOS_CONSUMER_KEY=
-USOS_CONSUMER_SECRET=
-USOSWEB_BASE_URL=https://usosweb.vistula.edu.pl/
-PLATON_BASE_URL=https://platon.vistula.edu.pl/
-ADAPTER_MODE=mock|live
+POST /usos/oauth/request_token  { callbackUrl, scopes[] }        → { token, secret, authorizeUrl }
+POST /usos/oauth/access_token   { token, secret, verifier }      → { token, secret }
+ANY  /usos/proxy/{**path}       nagłówki X-Usos-Token, X-Usos-Token-Secret; body/query przekazane 1:1;
+                                 serwer dokłada podpis OAuth i zwraca odpowiedź USOS API bez zmian
+GET  /health
+```
+Opcjonalny nagłówek `X-Vusos-App-Key` (shared secret z konfiguracji) ogranicza użycie proxy do naszych klientów.
+Rate limiting per IP. Serwer nie przechowuje tokenów użytkowników.
+
+## Przepływy w kliencie natywnym
+
+- **Logowanie**: MSAL.NET `AcquireTokenInteractive` (systemowa przeglądarka, redirect `msauth`/`vusos://auth`),
+  weryfikacja `tid`/domeny e-mail, profil zapisany lokalnie. Brak własnego serwera tożsamości.
+- **USOS**: `request_token` (przez Vusos.Server lub lokalnie) → przeglądarka systemowa `services/oauth/authorize`
+  → callback `vusos://usos?oauth_token=…&oauth_verifier=…` (USOS API dopuszcza callback z własnym schematem; w razie
+  problemów Vusos.Server wystawia `/usos/oauth/callback` i przekierowuje na `vusos://`) → `access_token`
+  → `UsosApiCredentials` w SecureStorage.
+- **Platon**: przeglądarka systemowa na `launch.php?…&urlscheme=vusos` → `vusos://token=…` → `PlatonWsCredentials`.
+- Deep linki: Android `intent-filter`, iOS `CFBundleURLTypes`, Windows `windows.protocol` w `Package.appxmanifest`,
+  Mac Catalyst `CFBundleURLTypes`. Obsługa w `App` → `IDeepLinkHandler` w Core/UI.
+
+## Bezpieczeństwo
+
+- Poświadczenia tylko na urządzeniu (SecureStorage). Vusos.Server nie ma stanu. Nigdy nie prosimy o hasło uczelniane.
+- Cache i materiały w prywatnym katalogu aplikacji; „Wyloguj” czyści bazę i pliki.
+- HTML z Moodle/USOS renderowany po sanitizacji (allowlista tagów), pliki otwierane systemowo.
+
+## Konfiguracja (appsettings / MauiProgram)
+
+```
+University:Name, UsosApiBaseUrl, UsoswebBaseUrl, PlatonBaseUrl, NativeScheme=vusos,
+University:SigningServerUrl | University:UsosConsumerKey + UsosConsumerSecret,
+University:EntraClientId, EntraAuthority=https://login.microsoftonline.com/organizations, AllowedEmailDomains
+Cache:FreshFor=00:02:00, ServeStaleUpTo=90.00:00:00, LiveTimeout=00:00:12, DownloadOnlyOnUnmetered=false
+Adapters:Mode=mock|live
 ```
 
 ## Decyzje odrzucone
 
-- Przechowywanie hasła uczelnianego i logowanie headless (Playwright) po stronie serwera: MFA, odpowiedzialność,
-  łamie regulamin. Odrzucone.
-- React Native / Flutter: osobny kod UI przy identycznym zakresie funkcji; Capacitor + Tauri reużywają jeden build.
-- Rozszerzenie przeglądarki jako connector: zbędne, gdy powłoki natywne łapią deep linki `vusos://`.
+- Hasło uczelniane + headless login po stronie serwera: MFA, odpowiedzialność, regulamin.
+- React Native / Flutter / Capacitor: wymóg C#; MAUI Blazor Hybrid daje jeden kod C#/Razor na wszystkie platformy.
+- Trzymanie tokenów użytkowników na serwerze: niepotrzebne przy kliencie natywnym; mniejsza odpowiedzialność.

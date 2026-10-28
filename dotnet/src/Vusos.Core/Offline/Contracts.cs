@@ -57,5 +57,5 @@ public interface IQuizOfflineStore
     Task EnqueueAsync(PendingQuizAction action, CancellationToken ct = default);
     Task<IReadOnlyList<PendingQuizAction>> ListPendingAsync(CancellationToken ct = default);
     Task CompleteAsync(string actionId, CancellationToken ct = default);
-    Task MarkFailedAsync(string actionId, string error, CancellationToken ct = default);
+    Task MarkFailedAsync(string actionId, string errorMessage, CancellationToken ct = default);
 }
