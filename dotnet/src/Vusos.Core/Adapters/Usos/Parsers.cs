@@ -126,7 +126,7 @@ public static partial class Parsers
         return data;
     }
 
-    private static int FindCol(IReadOnlyList<string> headers, Regex re)
+    private static int FindCol(List<string> headers, Regex re)
     {
         for (var i = 0; i < headers.Count; i++) if (re.IsMatch(headers[i])) return i;
         return -1;

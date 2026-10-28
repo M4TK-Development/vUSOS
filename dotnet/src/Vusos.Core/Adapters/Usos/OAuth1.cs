@@ -79,6 +79,7 @@ public static class OAuth1
     }
 
     /// <summary>Base64 HMAC-SHA1 of the base string with key enc(consumerSecret)&amp;enc(tokenSecret).</summary>
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Security", "CA5350", Justification = "OAuth 1.0a (RFC 5849) mandates HMAC-SHA1; USOS accepts nothing else.")]
     public static string ComputeSignature(string baseString, string consumerSecret, string? tokenSecret)
     {
         var key = $"{PercentEncode(consumerSecret)}&{PercentEncode(tokenSecret ?? "")}";

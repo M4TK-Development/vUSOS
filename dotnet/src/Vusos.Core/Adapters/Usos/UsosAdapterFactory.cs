@@ -1,4 +1,5 @@
 using Vusos.Core.Platform;
+using Vusos.Core.Services;
 
 namespace Vusos.Core.Adapters.Usos;
 
@@ -18,4 +19,27 @@ public static class UsosAdapterFactory
         UsosMockCredentials => new UsosMockAdapter(clock),
         _ => throw new AdapterUnavailableException($"Nieobsługiwany tryb USOS: {creds.GetType().Name}") { IsTransient = false },
     };
+
+    /// <summary>
+    /// Signing strategy from configuration: <c>SigningServerUrl</c> set -> <see cref="RemoteUsosSigner"/> (Vusos.Server),
+    /// otherwise <see cref="LocalUsosSigner"/> with the consumer key/secret; null when neither is configured.
+    /// </summary>
+    public static IUsosRequestSigner? CreateSigner(UniversityOptions options, HttpClient http, string? appKey = null)
+    {
+        if (!string.IsNullOrWhiteSpace(options.SigningServerUrl))
+            return new RemoteUsosSigner(http, new Uri(options.SigningServerUrl), appKey);
+        if (!string.IsNullOrWhiteSpace(options.UsosConsumerKey) && !string.IsNullOrWhiteSpace(options.UsosConsumerSecret))
+            return new LocalUsosSigner(http, options.UsosConsumerKey, options.UsosConsumerSecret);
+        return null;
+    }
+
+    /// <summary>OAuth (request/access token) client matching <see cref="CreateSigner"/>; null when signing is not configured.</summary>
+    public static IUsosOAuthClient? CreateOAuthClient(UniversityOptions options, HttpClient http, string? appKey = null)
+    {
+        if (!string.IsNullOrWhiteSpace(options.SigningServerUrl))
+            return new RemoteUsosOAuthClient(http, new Uri(options.SigningServerUrl), appKey);
+        if (!string.IsNullOrWhiteSpace(options.UsosConsumerKey) && !string.IsNullOrWhiteSpace(options.UsosConsumerSecret))
+            return new LocalUsosOAuthClient(http, options.UsosApiBaseUrl, options.UsosConsumerKey, options.UsosConsumerSecret);
+        return null;
+    }
 }
