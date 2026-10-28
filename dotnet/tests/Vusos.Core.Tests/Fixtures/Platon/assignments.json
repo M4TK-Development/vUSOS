@@ -1,0 +1,71 @@
+{
+  "courses": [
+    {
+      "id": 3017,
+      "fullname": "Algorytmy i struktury danych (INF-ALG-2025Z)",
+      "shortname": "INF-ALG-2025Z",
+      "timemodified": 1791000000,
+      "assignments": [
+        {
+          "id": 8001,
+          "cmid": 410012,
+          "course": 3017,
+          "name": "Zadanie 1: Sortowanie",
+          "nosubmissions": 0,
+          "submissiondrafts": 1,
+          "sendnotifications": 0,
+          "duedate": 1793397540,
+          "allowsubmissionsfromdate": 1790553600,
+          "grade": 100,
+          "timemodified": 1791000000,
+          "completionsubmit": 0,
+          "cutoffdate": 1793746740,
+          "gradingduedate": 0,
+          "intro": "<p>Zaimplementuj quicksort.</p>",
+          "introformat": 1
+        },
+        {
+          "id": 8002,
+          "cmid": 410030,
+          "course": 3017,
+          "name": "Zadanie 0: Rozgrzewka",
+          "nosubmissions": 0,
+          "duedate": 1792533540,
+          "allowsubmissionsfromdate": 1790553600,
+          "grade": 10,
+          "cutoffdate": 0,
+          "gradingduedate": 0
+        },
+        {
+          "id": 8003,
+          "cmid": 410031,
+          "course": 3017,
+          "name": "Projekt końcowy",
+          "nosubmissions": 0,
+          "duedate": 0,
+          "grade": 100,
+          "cutoffdate": 0
+        }
+      ]
+    },
+    {
+      "id": 3022,
+      "fullname": "Bazy danych (INF-BD-2025Z)",
+      "shortname": "INF-BD-2025Z",
+      "timemodified": 1791000000,
+      "assignments": [
+        {
+          "id": 8101,
+          "cmid": 411000,
+          "course": 3022,
+          "name": "Projekt schematu ERD",
+          "nosubmissions": 0,
+          "duedate": 1793746740,
+          "grade": 20,
+          "cutoffdate": 0
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

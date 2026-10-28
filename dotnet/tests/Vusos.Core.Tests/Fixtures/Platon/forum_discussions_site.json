@@ -1,0 +1,47 @@
+{
+  "discussions": [
+    {
+      "id": 15001,
+      "name": "Zmiana godzin pracy dziekanatu",
+      "groupid": -1,
+      "timemodified": 1793100000,
+      "usermodified": 12,
+      "timestart": 0,
+      "timeend": 0,
+      "discussion": 15001,
+      "parent": 0,
+      "userid": 12,
+      "created": 1793000000,
+      "modified": 1793100000,
+      "mailed": 1,
+      "subject": "Zmiana godzin pracy dziekanatu",
+      "message": "<p>Od poniedziałku dziekanat czynny 9-15.</p>",
+      "messageformat": 1,
+      "messagetrust": 0,
+      "attachment": "",
+      "totalscore": 0,
+      "mailnow": 0,
+      "userfullname": "Dziekanat Informatyki",
+      "usermodifiedfullname": "Dziekanat Informatyki",
+      "numreplies": 0,
+      "numunread": 0,
+      "pinned": false,
+      "locked": false,
+      "starred": false
+    },
+    {
+      "id": 15002,
+      "name": "Rejestracja na lektoraty",
+      "groupid": -1,
+      "timemodified": 1792000000,
+      "discussion": 15002,
+      "created": 1792000000,
+      "modified": 1792000000,
+      "subject": "",
+      "message": "<p>Rejestracja trwa do piątku.</p>",
+      "userfullname": null,
+      "pinned": true
+    }
+  ],
+  "warnings": []
+}

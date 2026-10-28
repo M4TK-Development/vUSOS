@@ -1,0 +1,47 @@
+{
+  "courses": [
+    {
+      "id": 3017,
+      "fullname": "Algorytmy i struktury danych (INF-ALG-2025Z)",
+      "shortname": "INF-ALG-2025Z",
+      "idnumber": "INF-ALG-2025Z",
+      "summary": "<p>Kurs z algorytmów.</p>",
+      "summaryformat": 1,
+      "startdate": 1790553600,
+      "enddate": 1802563200,
+      "visible": true,
+      "showactivitydates": false,
+      "showcompletionconditions": null,
+      "fullnamedisplay": "Algorytmy i struktury danych (INF-ALG-2025Z)",
+      "viewurl": "https://platon.vistula.edu.pl/course/view.php?id=3017",
+      "courseimage": "https://platon.vistula.edu.pl/pluginfile.php/88001/course/overviewfiles/alg.jpg",
+      "progress": 42.857142857143,
+      "hasprogress": true,
+      "isfavourite": true,
+      "hidden": false,
+      "showshortname": false,
+      "coursecategory": "Informatyka 2025/26"
+    },
+    {
+      "id": 3022,
+      "fullname": "Bazy danych (INF-BD-2025Z)",
+      "shortname": "INF-BD-2025Z",
+      "idnumber": "",
+      "summary": "",
+      "summaryformat": 1,
+      "startdate": 1790553600,
+      "enddate": 0,
+      "visible": true,
+      "fullnamedisplay": "Bazy danych (INF-BD-2025Z)",
+      "viewurl": "https://platon.vistula.edu.pl/course/view.php?id=3022",
+      "courseimage": "data:image/svg+xml;base64,PHN2Zy8+",
+      "progress": null,
+      "hasprogress": false,
+      "isfavourite": false,
+      "hidden": false,
+      "showshortname": false,
+      "coursecategory": "Informatyka 2025/26"
+    }
+  ],
+  "nextoffset": 2
+}
