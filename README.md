@@ -13,7 +13,9 @@ Projekt nieoficjalny, pisany z pozycji studenta (uprawnienia end-user, bez dost�
 
 ```
 apps/api          Fastify BFF: auth M365, zaszyfrowany magazyn poświadczeń, adaptery USOS/Platon, agregacja
-apps/web          React + Vite PWA
+apps/web          React + Vite — jeden kod UI dla web, mobile i desktop
+apps/mobile       Capacitor 6 — iOS i Android (telefon, tablet)
+apps/desktop      Tauri 2 — Windows, macOS, Linux
 packages/shared   model domenowy (zod) + interfejsy adapterów
 docs/             architektura
 deploy/           Dockerfile, docker-compose
@@ -37,6 +39,20 @@ pnpm dev
 4. `docker compose -f deploy/docker-compose.yml up -d`.
 
 Każdy użytkownik podłącza swoje konta USOS i Platon w **Ustawienia → Połączenia** (szczegóły w `apps/api/README.md`).
+
+## Aplikacje natywne
+
+Ten sam build `apps/web` trafia do powłok natywnych. Aplikacje rejestrują schemat `vusos://`, więc logowanie M365,
+OAuth USOS i token Platona (`launch.php?urlscheme=vusos`) wracają do aplikacji bez wklejania.
+
+```bash
+VITE_API_BASE_URL=https://twoj-bff.example.pl pnpm --filter @vusos/web build
+pnpm --filter @vusos/mobile add:android && pnpm --filter @vusos/mobile android   # Android Studio
+pnpm --filter @vusos/mobile add:ios && pnpm --filter @vusos/mobile ios           # Xcode, macOS
+pnpm --filter @vusos/desktop build                                               # instalatory Tauri
+```
+
+Szczegóły: `apps/mobile/README.md`, `apps/desktop/README.md`.
 
 ## Licencja
 

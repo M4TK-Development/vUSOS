@@ -38,10 +38,28 @@ Wnioski projektowe:
 ```
 apps/api        Fastify (Node 22, TS) — BFF: auth M365 (OIDC), magazyn poświadczeń (SQLite przez wbudowany `node:sqlite`, AES-256-GCM),
                 adaptery USOS/Platon, cache, agregacja dashboardu, proxy pobierania plików.
-apps/web        React + Vite + TS, Tailwind, TanStack Query, react-router. PWA.
+apps/web        React + Vite + TS, Tailwind, TanStack Query, react-router. Jeden kod UI dla wszystkich platform.
+apps/mobile     Capacitor 6: iOS + Android (telefon i tablet), ładuje build apps/web, rejestruje schemat vusos://.
+apps/desktop    Tauri 2: Windows / macOS / Linux, ten sam build apps/web, deep link vusos:// (tauri-plugin-deep-link).
 packages/shared Model domenowy (zod) + interfejsy adapterów. Jedyne źródło prawdy dla typów.
-apps/connector  (później) rozszerzenie MV3: przekazuje do BFF cookies/sesskey Platon i USOSweb oraz token mobile.
 ```
+
+## Klienci natywni (telefon, tablet, komputer)
+
+- Jeden frontend React, trzy powłoki: przeglądarka/PWA, Capacitor (iOS, Android), Tauri (desktop). UI responsywne:
+  dolna nawigacja na telefonie, sidebar od szerokości tabletu, safe-area insets.
+- Klient natywny rozmawia z BFF po HTTPS (`VITE_API_BASE_URL`), uwierzytelnia się **bearer tokenem** zamiast cookie
+  (token w Keychain/Keystore przez Capacitor Preferences/SecureStorage, na desktopie w magazynie Tauri).
+- Logowanie natywne: aplikacja otwiera systemową przeglądarkę na `/api/auth/login?client=native` → Entra → BFF
+  wystawia jednorazowy kod i przekierowuje na `vusos://auth?code=…` → aplikacja wymienia kod na token
+  (`POST /api/auth/native/exchange`).
+- **Platon jednym kliknięciem**: aplikacja otwiera `admin/tool/mobile/launch.php?service=moodle_mobile_app&passport=…&urlscheme=vusos`;
+  Moodle po SSO M365 przekierowuje na `vusos://token=BASE64(passport:::token:::privatetoken)`, aplikacja łapie
+  deep link i zapisuje token w BFF. Bez wklejania. (Jeśli admin wymusił `forcedurlscheme`, zostaje tryb wklejania.)
+- **USOS jednym kliknięciem**: OAuth 1.0a w systemowej przeglądarce; callback BFF przekierowuje na
+  `vusos://connected?system=usos`.
+- Schemat `vusos://` rejestrują: Capacitor (Info.plist `CFBundleURLTypes`, Android `intent-filter`), Tauri
+  (`tauri-plugin-deep-link`). Na iOS dodatkowo możliwe Universal Links, nieobowiązkowe.
 
 ## Auth aplikacji (M365)
 
@@ -115,4 +133,5 @@ ADAPTER_MODE=mock|live
 
 - Przechowywanie hasła uczelnianego i logowanie headless (Playwright) po stronie serwera: MFA, odpowiedzialność,
   łamie regulamin. Odrzucone.
-- Natywna aplikacja desktop/mobile jako jedyny klient: większy koszt, a problem SSO rozwiązuje connector.
+- React Native / Flutter: osobny kod UI przy identycznym zakresie funkcji; Capacitor + Tauri reużywają jeden build.
+- Rozszerzenie przeglądarki jako connector: zbędne, gdy powłoki natywne łapią deep linki `vusos://`.

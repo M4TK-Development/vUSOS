@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2/capability",
+  "identifier": "default",
+  "description": "Główne okno vUSOS",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-focus",
+    "opener:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://*" },
+        { "url": "http://localhost:*" }
+      ]
+    },
+    "deep-link:default"
+  ]
+}
