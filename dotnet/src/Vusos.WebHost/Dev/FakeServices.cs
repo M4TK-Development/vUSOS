@@ -1,3 +1,4 @@
+using ConnectionInfo = Vusos.Core.Services.ConnectionInfo;
 using System.Collections.Concurrent;
 using Microsoft.Extensions.DependencyInjection;
 using Vusos.Core.Adapters;

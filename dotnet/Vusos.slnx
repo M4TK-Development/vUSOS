@@ -8,5 +8,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/Vusos.Core.Tests/Vusos.Core.Tests.csproj" />
     <Project Path="tests/Vusos.Server.Tests/Vusos.Server.Tests.csproj" />
+    <Project Path="tests/Vusos.UI.Tests/Vusos.UI.Tests.csproj" />
   </Folder>
 </Solution>

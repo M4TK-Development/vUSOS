@@ -14,19 +14,20 @@ public sealed class VusosJs(IJSRuntime js)
         catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException) { return false; }
     }
 
-    public async Task<IReadOnlyList<QuizAnswer>> CollectQuizAsync(string containerId)
+    public async Task<IReadOnlyList<QuizAnswer>> CollectQuizAsync(string containerId, int? page = null)
     {
         try
         {
-            var fields = await js.InvokeAsync<JsField[]>("vusosQuiz.collect", containerId);
-            return fields.Select(f => new QuizAnswer(f.Name, f.Value ?? "")).ToList();
+            var fields = await js.InvokeAsync<JsField[]>("vusosQuiz.collect", containerId, page);
+            return (fields ?? []).Select(f => new QuizAnswer(f.Name, f.Value ?? "")).ToList();
         }
         catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException) { return []; }
     }
 
-    public async Task RestoreQuizAsync(string containerId, IEnumerable<QuizAnswer> answers)
+    /// <summary>Przywraca odpowiedzi; <paramref name="page"/> = numer strony z atrybutu data-page kontenera (JS czeka, aż DOM tej strony faktycznie się pojawi).</summary>
+    public async Task RestoreQuizAsync(string containerId, IEnumerable<QuizAnswer> answers, int page)
     {
-        try { await js.InvokeVoidAsync("vusosQuiz.restore", containerId, answers.Select(a => new { name = a.Name, value = a.Value }).ToArray()); }
+        try { await js.InvokeVoidAsync("vusosQuiz.restore", containerId, answers.Select(a => new { name = a.Name, value = a.Value }).ToArray(), page); }
         catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException) { }
     }
 

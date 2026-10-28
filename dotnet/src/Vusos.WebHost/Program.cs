@@ -39,8 +39,10 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 
 // Pobrane materiały (otwieranie plików z dysku serwera w przeglądarce). Token wystawia JsExternalOpener.
-app.MapGet("/dl/{token}", (string token, IDataProtectionProvider dp, IAppPaths paths) =>
+app.MapGet("/dl/{token}", (string token, HttpContext http) =>
 {
+    var dp = http.RequestServices.GetRequiredService<IDataProtectionProvider>();
+    var paths = http.RequestServices.GetRequiredService<IAppPaths>();
     string path;
     try
     {
@@ -60,7 +62,8 @@ app.MapGet("/dl/{token}", (string token, IDataProtectionProvider dp, IAppPaths p
 }).DisableAntiforgery();
 
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .AddAdditionalAssemblies(typeof(Vusos.UI.AppRouter).Assembly);
 
 app.Run();
 

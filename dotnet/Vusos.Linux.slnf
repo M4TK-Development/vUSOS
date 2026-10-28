@@ -1,13 +1,14 @@
 {
   "solution": {
-    "path": "Vusos.sln",
+    "path": "Vusos.slnx",
     "projects": [
       "src\\Vusos.Core\\Vusos.Core.csproj",
       "src\\Vusos.Server\\Vusos.Server.csproj",
       "src\\Vusos.UI\\Vusos.UI.csproj",
       "src\\Vusos.WebHost\\Vusos.WebHost.csproj",
       "tests\\Vusos.Core.Tests\\Vusos.Core.Tests.csproj",
-      "tests\\Vusos.Server.Tests\\Vusos.Server.Tests.csproj"
+      "tests\\Vusos.Server.Tests\\Vusos.Server.Tests.csproj",
+      "tests\\Vusos.UI.Tests\\Vusos.UI.Tests.csproj"
     ]
   }
 }

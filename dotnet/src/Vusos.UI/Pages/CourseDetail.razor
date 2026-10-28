@@ -94,7 +94,10 @@ else
     protected override void OnInitialized()
     {
         _subscription = Materials.Progress.Subscribe(new ActionObserver<DownloadProgress>(p => _ = InvokeAsync(() => OnProgressAsync(p))));
+        Connectivity.OnlineChanged += OnOnlineChanged;
     }
+
+    private void OnOnlineChanged(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
 
     protected override async Task OnParametersSetAsync()
     {
@@ -274,7 +277,7 @@ else
                                 <Icon Name="file" Size="18" />
                                 <div class="grow">
                                     <span class="file-name">@file.Name</span>
-                                    <span class="muted small">@Fmt.Bytes(file.Size ?? record?.Size)</span>
+                                    <span class="muted small nowrap">@Fmt.Bytes(file.Size ?? record?.Size)</span>
                                     @if (done) { <Badge Tone="ok"><Icon Name="check" Size="12" /> offline</Badge> }
                                     @if (record is { State: DownloadState.Failed }) { <Badge Tone="danger" Title="@record.Error">błąd pobierania</Badge> }
                                     @if (busy)
@@ -321,5 +324,9 @@ else
         </li>
     };
 
-    public void Dispose() => _subscription?.Dispose();
+    public void Dispose()
+    {
+        _subscription?.Dispose();
+        Connectivity.OnlineChanged -= OnOnlineChanged;
+    }
 }

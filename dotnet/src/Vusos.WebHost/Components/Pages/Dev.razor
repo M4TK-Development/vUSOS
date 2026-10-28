@@ -33,10 +33,10 @@ else
                 </select>
             </label>
             <div class="btn-row">
-                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Expired, &quot;mock&quot;, null)">Stan: wygasło</button>
-                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Error, &quot;mock&quot;, &quot;Symulowany błąd połączenia&quot;)">Stan: błąd</button>
-                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Connected, &quot;mock&quot;, null)">Stan: połączono</button>
-                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Disconnected, &quot;mock&quot;, null)">Stan: niepołączono</button>
+                <button type="button" class="btn" @onclick="() => SetState(s, ConnectionStatus.Expired)">Stan: wygasło</button>
+                <button type="button" class="btn" @onclick="() => SetState(s, ConnectionStatus.Error)">Stan: błąd</button>
+                <button type="button" class="btn" @onclick="() => SetState(s, ConnectionStatus.Connected)">Stan: połączono</button>
+                <button type="button" class="btn" @onclick="() => SetState(s, ConnectionStatus.Disconnected)">Stan: niepołączono</button>
             </div>
         </Card>
     }
@@ -56,6 +56,9 @@ else
     }
 
     private void OnOnline(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
+
+    private void SetState(SourceSystem s, ConnectionStatus status)
+        => _connections?.Set(s, status, "mock", status == ConnectionStatus.Error ? "Symulowany błąd połączenia" : null);
 
     private void SetMode(SourceSystem s, string? value)
     {

@@ -1,4 +1,5 @@
 @page "/testy"
+@implements IDisposable
 @inject IQuizService QuizSvc
 @inject IConnectionManager Connections
 @inject IConnectivity Connectivity
@@ -111,6 +112,10 @@
     private string _password = "";
     private bool _starting;
     private string? _startError;
+
+    protected override void OnInitialized() => Connectivity.OnlineChanged += OnOnlineChanged;
+    private void OnOnlineChanged(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
+    public void Dispose() => Connectivity.OnlineChanged -= OnOnlineChanged;
 
     private async Task<QuizzesData> LoadAsync(CancellationToken ct)
     {

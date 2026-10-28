@@ -73,7 +73,7 @@ else if (_session is { } session)
             </div>
         }
 
-        <div id="@ContainerId" class="quiz-page" @key="_pageIndex">
+        <div id="@ContainerId" class="quiz-page" data-page="@_pageIndex" @key="_pageIndex">
             @foreach (var q in PageQuestions)
             {
                 <section class="card question" aria-label="Pytanie @q.Slot">
@@ -161,6 +161,10 @@ else if (_session is { } session)
         ? []
         : _session.Data.Questions.Where(q => q.Page == _pages[_pageIndex]).OrderBy(q => q.Slot).ToList();
 
+    protected override void OnInitialized() => Connectivity.OnlineChanged += OnOnlineChanged;
+
+    private void OnOnlineChanged(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
+
     protected override async Task OnParametersSetAsync()
     {
         if (_loadedFor == AttemptId) return;
@@ -214,7 +218,7 @@ else if (_session is { } session)
         if (_restorePending && !_loading && _error is null && _session is not null && !_finished)
         {
             _restorePending = false;
-            await Js.RestoreQuizAsync(ContainerId, _answers);
+            await Js.RestoreQuizAsync(ContainerId, _answers, _pageIndex);
         }
     }
 
@@ -235,7 +239,7 @@ else if (_session is { } session)
         {
             _saving = true;
             StateHasChanged();
-            if (collect) Merge(await Js.CollectQuizAsync(ContainerId));
+            if (collect) Merge(await Js.CollectQuizAsync(ContainerId, _pageIndex));
             _session = await Quizzes.SaveAnswersAsync(AttemptId, _answers.ToList());
             _lastSaved = Clock.GetUtcNow();
             _saveError = null;
@@ -314,6 +318,7 @@ else if (_session is { } session)
 
     public ValueTask DisposeAsync()
     {
+        Connectivity.OnlineChanged -= OnOnlineChanged;
         StopAutosave();
         return ValueTask.CompletedTask;
     }

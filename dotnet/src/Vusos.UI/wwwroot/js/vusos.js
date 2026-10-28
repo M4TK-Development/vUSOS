@@ -72,11 +72,34 @@
     }
   };
 
+  function applyAnswers(root, answers) {
+    var byName = Object.create(null);
+    answers.forEach(function (a) { (byName[a.name] = byName[a.name] || []).push(String(a.value)); });
+    root.querySelectorAll("input, select, textarea").forEach(function (el) {
+      var values = byName[el.name];
+      if (!el.name || !values) return;
+      var tag = el.tagName;
+      if (tag === "INPUT") {
+        var type = (el.type || "text").toLowerCase();
+        if (type === "radio") el.checked = values.indexOf(el.value) >= 0;
+        else if (type === "checkbox") el.checked = values.some(function (v) { return v === el.value && v !== "0"; });
+        else if (type === "hidden" || type === "button" || type === "submit" || type === "reset" || type === "file" || type === "image") { /* bez zmian */ }
+        else el.value = values[values.length - 1];
+      } else if (tag === "SELECT" && el.multiple) {
+        Array.prototype.forEach.call(el.options, function (o) { o.selected = values.indexOf(o.value) >= 0; });
+      } else {
+        el.value = values[values.length - 1];
+      }
+    });
+  }
+
   window.vusosQuiz = {
     /** Zbiera pola formularza pytań z kontenera → [{name, value}]. Ostatnia wartość dla danej nazwy wygrywa (hidden "0" + checkbox "1"). */
-    collect: function (containerId) {
+    collect: function (containerId, page) {
       var root = document.getElementById(containerId);
       if (!root) return [];
+      // DOM innej strony niż oczekiwana (render jeszcze nie dotarł) – nie zbieramy, żeby nie nadpisać odpowiedzi pustymi polami
+      if (page !== undefined && page !== null && root.getAttribute("data-page") !== String(page)) return [];
       var result = [];
       var index = Object.create(null);
       function put(name, value) {
@@ -100,28 +123,27 @@
       return result;
     },
 
-    /** Przywraca zapisane odpowiedzi ([{name, value}]) do pól formularza. */
-    restore: function (containerId, answers) {
-      var root = document.getElementById(containerId);
-      if (!root || !answers || !answers.length) return;
-      var byName = Object.create(null);
-      answers.forEach(function (a) { (byName[a.name] = byName[a.name] || []).push(String(a.value)); });
-      root.querySelectorAll("input, select, textarea").forEach(function (el) {
-        var values = byName[el.name];
-        if (!el.name || !values) return;
-        var tag = el.tagName;
-        if (tag === "INPUT") {
-          var type = (el.type || "text").toLowerCase();
-          if (type === "radio") el.checked = values.indexOf(el.value) >= 0;
-          else if (type === "checkbox") el.checked = values.some(function (v) { return v === el.value && v !== "0"; });
-          else if (type === "hidden" || type === "button" || type === "submit" || type === "reset" || type === "file" || type === "image") { /* bez zmian */ }
-          else el.value = values[values.length - 1];
-        } else if (tag === "SELECT" && el.multiple) {
-          Array.prototype.forEach.call(el.options, function (o) { o.selected = values.indexOf(o.value) >= 0; });
-        } else {
-          el.value = values[values.length - 1];
-        }
+    /**
+     * Przywraca zapisane odpowiedzi ([{name, value}]) do pól formularza. Blazor potrafi wywołać OnAfterRender, zanim przeglądarka
+     * zastosuje paczkę renderowania, więc czekamy (MutationObserver) aż kontener ma atrybut data-page równy oczekiwanej stronie.
+     * Zastosowanie dzieje się w mikrozadaniu zaraz po zmianie DOM, czyli przed każdym kolejnym wywołaniem z .NET (np. collect).
+     */
+    restore: function (containerId, answers, page) {
+      if (!answers || !answers.length) return;
+      function ready() {
+        var root = document.getElementById(containerId);
+        return root && (page === undefined || page === null || root.getAttribute("data-page") === String(page)) ? root : null;
+      }
+      var root = ready();
+      if (root) { applyAnswers(root, answers); return; }
+      var observer = new MutationObserver(function () {
+        var r = ready();
+        if (!r) return;
+        observer.disconnect();
+        applyAnswers(r, answers);
       });
+      observer.observe(document.body, { childList: true, subtree: true });
+      setTimeout(function () { observer.disconnect(); }, 5000);
     }
   };
 })();
