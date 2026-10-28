@@ -1,0 +1,16 @@
+services:
+  vusos:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    env_file: ../apps/api/.env
+    environment:
+      DATABASE_PATH: /data/vusos.sqlite
+      STATIC_DIR: /app/apps/web/dist
+    ports:
+      - "3001:3001"
+    volumes:
+      - vusos-data:/data
+volumes:
+  vusos-data:
