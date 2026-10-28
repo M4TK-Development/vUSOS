@@ -38,7 +38,7 @@ describe("QueryBoundary", () => {
   it("renders expired prompt for 424 ADAPTER_AUTH, using the fallback system", () => {
     const err = new ApiError(424, "expired", "ADAPTER_AUTH");
     wrap(<QueryBoundary system="usos" query={fakeQuery({ isPending: false, isError: true, error: err })}>{() => <div>data</div>}</QueryBoundary>);
-    expect(screen.getByTestId("connect-prompt")).toHaveTextContent("System USOS wygasła".replace("System ", "Sesja w systemie ").replace(" wygasła", " wygasła"));
+    expect(screen.getByTestId("connect-prompt")).toHaveTextContent("Sesja w systemie USOS wygasła");
   });
 
   it("renders generic error with retry for other errors", () => {
