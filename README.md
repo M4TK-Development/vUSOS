@@ -30,7 +30,7 @@ reference/ts-prototype     pierwsza iteracja (TypeScript), zachowana jako specyf
 cd dotnet
 dotnet build Vusos.Linux.slnf
 dotnet test Vusos.Linux.slnf
-dotnet run --project src/Vusos.WebHost        # http://localhost:5080, dane z adapterów mock
+dotnet run --project src/Vusos.WebHost        # http://localhost:5156, logowanie dev, dane z adapterów mock
 ```
 
 ## Aplikacje natywne
