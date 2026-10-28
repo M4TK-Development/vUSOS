@@ -19,6 +19,8 @@ import type {
   TimetableEntry,
 } from "@vusos/shared";
 import { api } from "./client";
+import { clearToken } from "../lib/token";
+import { isNative } from "../platform";
 import { normalizeConnections, type ComposeInput, type Connections, type MeResponse } from "./types";
 
 const q = (params: Record<string, string | number | undefined>) => {
@@ -91,7 +93,11 @@ function useInvalidateConnections() {
 
 export function useUsosOAuthStart() {
   return useMutation({
-    mutationFn: () => api<{ authorizeUrl: string }>("/connections/usos/oauth/start", { method: "POST" }),
+    mutationFn: () =>
+      api<{ authorizeUrl: string }>("/connections/usos/oauth/start", {
+        method: "POST",
+        body: { client: isNative() ? "native" : "web" },
+      }),
   });
 }
 
@@ -133,7 +139,34 @@ export function useDisconnect() {
 }
 
 export function useLogout() {
-  return useMutation({ mutationFn: () => api<unknown>("/auth/logout", { method: "POST" }) });
+  return useMutation({
+    mutationFn: () => api<unknown>("/auth/logout", { method: "POST" }),
+    onSettled: () => clearToken(),
+  });
+}
+
+export interface AppConfig {
+  platonBaseUrl: string;
+  usoswebBaseUrl?: string;
+  nativeScheme: string;
+}
+
+export const DEFAULT_CONFIG: AppConfig = { platonBaseUrl: "https://platon.vistula.edu.pl/", nativeScheme: "vusos" };
+
+/** GET /api/config; falls back to defaults if the endpoint is missing. */
+export function useConfig() {
+  return useQuery({
+    queryKey: ["config"] as const,
+    staleTime: Infinity,
+    queryFn: async (): Promise<AppConfig> => {
+      try {
+        const c = await api<Partial<AppConfig>>("/config");
+        return { ...DEFAULT_CONFIG, ...Object.fromEntries(Object.entries(c).filter(([, v]) => !!v)) };
+      } catch {
+        return DEFAULT_CONFIG;
+      }
+    },
+  });
 }
 
 // ---- dashboard ----

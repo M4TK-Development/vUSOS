@@ -1,0 +1,23 @@
+{
+  "gradingsummary": { "participantcount": 120, "submissiondraftscount": 0, "submissionsenabled": true, "submissionssubmittedcount": 90, "submissionsneedgradingcount": 10, "warnofungroupedusers": "" },
+  "lastattempt": {
+    "submission": { "id": 55001, "userid": 48213, "attemptnumber": 0, "timecreated": 1792400000, "timemodified": 1792500000, "status": "submitted", "groupid": 0, "assignment": 8002, "latest": 1 },
+    "submissiongroupmemberswhoneedtosubmit": [],
+    "submissionsenabled": true,
+    "locked": false,
+    "graded": true,
+    "canedit": false,
+    "cansubmit": false,
+    "extensionduedate": null,
+    "blindmarking": false,
+    "gradingstatus": "graded",
+    "usergroups": []
+  },
+  "feedback": {
+    "grade": { "id": 6001, "assignment": 8002, "userid": 48213, "attemptnumber": 0, "timecreated": 1792600000, "timemodified": 1792600000, "grader": 301, "grade": "9.00000" },
+    "gradefordisplay": "<div class=\"grade\">9,00 / 10,00</div>",
+    "gradeddate": 1792600000,
+    "plugins": []
+  },
+  "warnings": []
+}

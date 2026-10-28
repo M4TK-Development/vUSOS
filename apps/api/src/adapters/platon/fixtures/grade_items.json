@@ -1,0 +1,71 @@
+{
+  "usergrades": [
+    {
+      "courseid": 3017,
+      "courseidnumber": "INF-ALG-2025Z",
+      "userid": 48213,
+      "userfullname": "Jan Kowalski",
+      "useridnumber": "",
+      "maxdepth": 2,
+      "gradeitems": [
+        {
+          "id": 123001,
+          "itemname": "Zadanie 0: Rozgrzewka",
+          "itemtype": "mod",
+          "itemmodule": "assign",
+          "iteminstance": 8002,
+          "itemnumber": 0,
+          "categoryid": 5001,
+          "cmid": 410030,
+          "graderaw": 9,
+          "gradedatesubmitted": 1792500000,
+          "gradedategraded": 1792600000,
+          "gradehiddenbydate": false,
+          "gradeneedsupdate": false,
+          "gradeishidden": false,
+          "gradeislocked": false,
+          "gradeisoverridden": false,
+          "gradeformatted": "9,00",
+          "grademin": 0,
+          "grademax": 10,
+          "rangeformatted": "0–10",
+          "percentageformatted": "90,00 %",
+          "feedback": "<p>Dobra robota.</p>",
+          "feedbackformat": 1
+        },
+        {
+          "id": 123002,
+          "itemname": "Zadanie 1: Sortowanie",
+          "itemtype": "mod",
+          "itemmodule": "assign",
+          "iteminstance": 8001,
+          "itemnumber": 0,
+          "cmid": 410012,
+          "graderaw": null,
+          "gradedatesubmitted": null,
+          "gradedategraded": null,
+          "gradeformatted": "-",
+          "grademin": 0,
+          "grademax": 100,
+          "percentageformatted": "-",
+          "feedback": "",
+          "feedbackformat": 0
+        },
+        {
+          "id": 123099,
+          "itemname": null,
+          "itemtype": "course",
+          "itemnumber": null,
+          "categoryid": 5001,
+          "graderaw": 9,
+          "gradedategraded": 1792600000,
+          "gradeformatted": "9,00",
+          "grademin": 0,
+          "grademax": 110,
+          "percentageformatted": "8,18 %"
+        }
+      ]
+    }
+  ],
+  "warnings": []
+}

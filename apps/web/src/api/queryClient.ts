@@ -1,4 +1,5 @@
 import { MutationCache, QueryCache, QueryClient } from "@tanstack/react-query";
+import { clearToken } from "../lib/token";
 import { isApiError } from "./client";
 
 /**
@@ -7,7 +8,10 @@ import { isApiError } from "./client";
  */
 export function createQueryClient(onUnauthorized: () => void): QueryClient {
   const handle = (error: unknown) => {
-    if (isApiError(error) && error.status === 401) onUnauthorized();
+    if (isApiError(error) && error.status === 401) {
+      clearToken();
+      onUnauthorized();
+    }
   };
   return new QueryClient({
     queryCache: new QueryCache({ onError: handle }),

@@ -1,0 +1,179 @@
+[
+  {
+    "id": 91001,
+    "name": "Wprowadzenie",
+    "visible": 1,
+    "summary": "<p>Witamy na kursie!</p>",
+    "summaryformat": 1,
+    "section": 0,
+    "hiddenbynumsections": 0,
+    "uservisible": true,
+    "modules": [
+      {
+        "id": 410001,
+        "url": "https://platon.vistula.edu.pl/mod/forum/view.php?id=410001",
+        "name": "Ogłoszenia",
+        "instance": 7001,
+        "contextid": 520001,
+        "description": "<div class=\"no-overflow\"><p>Ogłoszenia prowadzącego</p></div>",
+        "visible": 1,
+        "uservisible": true,
+        "visibleoncoursepage": 1,
+        "modicon": "https://platon.vistula.edu.pl/theme/image.php/boost/forum/1/monologo",
+        "modname": "forum",
+        "modplural": "Fora",
+        "indent": 0,
+        "onclick": "",
+        "afterlink": null,
+        "customdata": "\"\"",
+        "noviewlink": false,
+        "completion": 0
+      },
+      {
+        "id": 410002,
+        "url": "https://platon.vistula.edu.pl/mod/resource/view.php?id=410002",
+        "name": "Sylabus",
+        "instance": 7002,
+        "contextid": 520002,
+        "description": "",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "resource",
+        "modplural": "Pliki",
+        "completion": 1,
+        "completiondata": { "state": 1, "timecompleted": 1790600000, "overrideby": null, "valueused": false },
+        "contents": [
+          {
+            "type": "file",
+            "filename": "Sylabus_ASD.pdf",
+            "filepath": "/",
+            "filesize": 183422,
+            "fileurl": "https://platon.vistula.edu.pl/webservice/pluginfile.php/520002/mod_resource/content/1/Sylabus_ASD.pdf?forcedownload=1",
+            "timecreated": 1790560000,
+            "timemodified": 1790561000,
+            "sortorder": 1,
+            "mimetype": "application/pdf",
+            "isexternalfile": false,
+            "userid": 301,
+            "author": "dr Anna Nowak",
+            "license": "allrightsreserved"
+          }
+        ],
+        "contentsinfo": { "filescount": 1, "filessize": 183422, "lastmodified": 1790561000, "mimetypes": ["application/pdf"], "repositorytype": "" }
+      }
+    ]
+  },
+  {
+    "id": 91002,
+    "name": "Tydzień 1",
+    "visible": 1,
+    "summary": "<p><img src=\"@@PLUGINFILE@@/banner.png\" alt=\"\"></p>",
+    "summaryformat": 1,
+    "section": 1,
+    "uservisible": true,
+    "modules": [
+      {
+        "id": 410010,
+        "url": "https://platon.vistula.edu.pl/mod/folder/view.php?id=410010",
+        "name": "Slajdy z wykładu",
+        "instance": 7010,
+        "contextid": 520010,
+        "description": "",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "folder",
+        "completion": 2,
+        "completiondata": { "state": 0, "timecompleted": 0 },
+        "contents": [
+          {
+            "type": "file",
+            "filename": "Wyklad_01.pptx",
+            "filepath": "/",
+            "filesize": 2411023,
+            "fileurl": "https://platon.vistula.edu.pl/webservice/pluginfile.php/520010/mod_folder/content/0/Wyklad_01.pptx?forcedownload=1",
+            "timemodified": 1791000000,
+            "mimetype": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          },
+          {
+            "type": "file",
+            "filename": "Wyklad_02.pptx",
+            "filepath": "/",
+            "filesize": 1998011,
+            "fileurl": "https://platon.vistula.edu.pl/webservice/pluginfile.php/520010/mod_folder/content/0/Wyklad_02.pptx?forcedownload=1",
+            "timemodified": 0,
+            "mimetype": "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          }
+        ]
+      },
+      {
+        "id": 410011,
+        "url": "https://platon.vistula.edu.pl/mod/url/view.php?id=410011",
+        "name": "Visualgo - wizualizacje algorytmów",
+        "instance": 7011,
+        "contextid": 520011,
+        "description": "",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "url",
+        "contents": [
+          { "type": "url", "filename": "Visualgo", "filepath": null, "filesize": 0, "fileurl": "https://visualgo.net/en", "timecreated": 1791000000, "timemodified": 1791000000 }
+        ]
+      },
+      {
+        "id": 410012,
+        "name": "Zadanie 1: Sortowanie",
+        "url": "https://platon.vistula.edu.pl/mod/assign/view.php?id=410012",
+        "instance": 8001,
+        "contextid": 520012,
+        "description": "<p>Zaimplementuj <b>quicksort</b>.</p>",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "assign",
+        "completion": 0
+      },
+      {
+        "id": 410013,
+        "name": "Quiz: złożoność obliczeniowa",
+        "url": "https://platon.vistula.edu.pl/mod/quiz/view.php?id=410013",
+        "instance": 9001,
+        "contextid": 520013,
+        "description": "",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "quiz"
+      },
+      {
+        "id": 410014,
+        "name": "Dziennik laboratoryjny",
+        "url": "https://platon.vistula.edu.pl/mod/glossary/view.php?id=410014",
+        "instance": 9101,
+        "contextid": 520014,
+        "description": "",
+        "visible": 0,
+        "uservisible": false,
+        "modname": "glossary"
+      }
+    ]
+  },
+  {
+    "id": 91003,
+    "name": "",
+    "visible": 1,
+    "summary": "",
+    "section": 2,
+    "uservisible": true,
+    "modules": [
+      {
+        "id": 410020,
+        "name": "<span class=\"label\">Ważne</span>",
+        "instance": 9201,
+        "contextid": 520020,
+        "description": "<p>Termin oddania: patrz kalendarz. <img src=\"@@PLUGINFILE@@/x.png\"></p>",
+        "visible": 1,
+        "uservisible": true,
+        "modname": "label",
+        "noviewlink": true
+      }
+    ]
+  }
+]

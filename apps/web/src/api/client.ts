@@ -1,4 +1,6 @@
 import type { SourceSystem } from "@vusos/shared";
+import { apiBase } from "../platform";
+import { getToken } from "../lib/token";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -39,12 +41,14 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   const { method = "GET", body, signal } = opts;
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    const token = getToken();
+    res = await fetch(`${apiBase()}/api${path}`, {
       method,
       credentials: "include",
       signal,
       headers: {
         Accept: "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(body !== undefined ? { "Content-Type": "application/json" } : {}),
       },
       body: body !== undefined ? JSON.stringify(body) : undefined,
@@ -84,4 +88,19 @@ function defaultMessage(status: number): string {
   }
 }
 
-export const platonFileUrl = (url: string) => `/api/platon/file?url=${encodeURIComponent(url)}`;
+export const platonFileUrl = (url: string) => `${apiBase()}/api/platon/file?url=${encodeURIComponent(url)}`;
+
+/** Fetches a Platon file with the Bearer token (native shells cannot attach it to a plain link) and opens it. */
+export async function openPlatonFileAuthed(url: string, name: string): Promise<void> {
+  const token = getToken();
+  const res = await fetch(platonFileUrl(url), { credentials: "include", headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) throw new ApiError(res.status, "Nie udało się pobrać pliku.");
+  const blobUrl = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = blobUrl;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000);
+}

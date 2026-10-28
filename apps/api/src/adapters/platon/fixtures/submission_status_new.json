@@ -1,0 +1,12 @@
+{
+  "lastattempt": {
+    "submission": { "id": 55002, "userid": 48213, "attemptnumber": 0, "timecreated": 1793000000, "timemodified": 1793000000, "status": "draft", "groupid": 0, "assignment": 8001, "latest": 1 },
+    "submissionsenabled": true,
+    "locked": false,
+    "graded": false,
+    "canedit": true,
+    "cansubmit": true,
+    "gradingstatus": "notgraded"
+  },
+  "warnings": []
+}
