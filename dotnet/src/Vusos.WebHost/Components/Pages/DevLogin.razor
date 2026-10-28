@@ -1,0 +1,47 @@
+@page "/dev-logowanie"
+@layout EmptyLayout
+@inject DevAuthSession Auth
+@inject NavigationManager Nav
+@inject IServiceProvider Services
+
+<PageTitle>Logowanie deweloperskie – vUSOS</PageTitle>
+<div class="login">
+    <div class="card login-card">
+        <h1>Logowanie deweloperskie</h1>
+        <p class="muted">Zastępuje okno logowania Microsoft 365. W wersji produkcyjnej tożsamość potwierdza Entra ID, tutaj wystarczy adres e-mail z domeny uczelni.</p>
+        <form class="form" @onsubmit="SubmitAsync" @onsubmit:preventDefault>
+            <label class="field">
+                <span>Adres e-mail</span>
+                <input class="input" type="email" @bind="_email" @bind:event="oninput" required autocomplete="username" inputmode="email" />
+            </label>
+            @if (_error is not null) { <p class="text-danger small" role="alert">@_error</p> }
+            <button type="submit" class="btn btn-primary btn-lg">Zaloguj</button>
+            <a class="btn btn-ghost" href="/logowanie">Wróć</a>
+        </form>
+    </div>
+</div>
+
+@code {
+    private string _email = "anna.kowalska@stu.vistula.edu.pl";
+    private string? _error;
+
+    private string[] AllowedDomains =>
+        Services.GetService<Microsoft.Extensions.Options.IOptions<Vusos.Core.Services.UniversityOptions>>()?.Value.AllowedEmailDomains
+        ?? ["vistula.edu.pl", "stu.vistula.edu.pl"];
+
+    private Task SubmitAsync()
+    {
+        var email = _email.Trim();
+        var at = email.LastIndexOf('@');
+        var domain = at > 0 ? email[(at + 1)..].ToLowerInvariant() : "";
+        var ok = domain.Length > 0 && AllowedDomains.Any(d => domain == d || domain.EndsWith("." + d, StringComparison.Ordinal));
+        if (!ok)
+        {
+            _error = $"Dozwolone są tylko konta uczelni ({string.Join(", ", AllowedDomains.Select(d => "@" + d))}).";
+            return Task.CompletedTask;
+        }
+        Auth.Complete(email);
+        Nav.NavigateTo("/", replace: true);
+        return Task.CompletedTask;
+    }
+}

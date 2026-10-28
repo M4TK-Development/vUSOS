@@ -1,0 +1,69 @@
+@page "/dev"
+@implements IDisposable
+@inject IServiceProvider Services
+
+<PageTitle>Dev – vUSOS</PageTitle>
+<PageHeader Title="Panel deweloperski" Subtitle="Tylko tryb Adapters:Mode=fake" />
+
+@if (_backend is null || _connectivity is null || _connections is null)
+{
+    <div class="card"><EmptyState Title="Niedostępne" Hint="Panel działa tylko z fałszywymi usługami (Adapters:Mode=fake)." /></div>
+}
+else
+{
+    <Card Title="Sieć" IconName="cloud-off">
+        <p class="muted small">Symuluje brak internetu: dane pochodzą „z cache”, pobieranie się wstrzymuje, testy działają lokalnie.</p>
+        <label class="field-inline">
+            <input type="checkbox" checked="@(!_connectivity.IsOnline)" @onchange="e => { _connectivity.SetOnline(!(bool)(e.Value ?? false)); }" />
+            <span>Tryb offline</span>
+        </label>
+    </Card>
+
+    @foreach (var system in new[] { SourceSystem.Usos, SourceSystem.Platon })
+    {
+        var s = system;
+        <Card Title="@Fmt.SystemName(s)" IconName="plug">
+            <label class="field-inline">
+                <span>Zachowanie systemu</span>
+                <select class="input" value="@_backend.ModeOf(s)" @onchange="e => SetMode(s, e.Value?.ToString())">
+                    <option value="@FakeSystemMode.Normal">normalne (na żywo)</option>
+                    <option value="@FakeSystemMode.ServeCache">dane z cache (przeciążony)</option>
+                    <option value="@FakeSystemMode.Unavailable">niedostępny, brak cache</option>
+                    <option value="@FakeSystemMode.AuthExpired">sesja wygasła (błąd autoryzacji)</option>
+                </select>
+            </label>
+            <div class="btn-row">
+                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Expired, &quot;mock&quot;, null)">Stan: wygasło</button>
+                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Error, &quot;mock&quot;, &quot;Symulowany błąd połączenia&quot;)">Stan: błąd</button>
+                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Connected, &quot;mock&quot;, null)">Stan: połączono</button>
+                <button type="button" class="btn" @onclick="() => _connections.Set(s, ConnectionStatus.Disconnected, &quot;mock&quot;, null)">Stan: niepołączono</button>
+            </div>
+        </Card>
+    }
+}
+
+@code {
+    private FakeBackend? _backend;
+    private FakeConnectivity? _connectivity;
+    private FakeConnectionManager? _connections;
+
+    protected override void OnInitialized()
+    {
+        _backend = Services.GetService<FakeBackend>();
+        _connectivity = Services.GetService<FakeConnectivity>();
+        _connections = Services.GetService<FakeConnectionManager>();
+        if (_connectivity is not null) _connectivity.OnlineChanged += OnOnline;
+    }
+
+    private void OnOnline(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
+
+    private void SetMode(SourceSystem s, string? value)
+    {
+        if (Enum.TryParse<FakeSystemMode>(value, out var mode)) _backend?.SetMode(s, mode);
+    }
+
+    public void Dispose()
+    {
+        if (_connectivity is not null) _connectivity.OnlineChanged -= OnOnline;
+    }
+}

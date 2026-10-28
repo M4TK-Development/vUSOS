@@ -1,21 +1,28 @@
-﻿<!DOCTYPE html>
-<html lang="en">
+<!DOCTYPE html>
+<html lang="pl">
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#4338ca" />
     <base href="/" />
     <ResourcePreloader />
-    <link rel="stylesheet" href="@Assets["app.css"]" />
+    <link rel="stylesheet" href="@Assets["_content/Vusos.UI/css/app.css"]" />
     <link rel="stylesheet" href="@Assets["Vusos.WebHost.styles.css"]" />
     <ImportMap />
-    <HeadOutlet />
+    <HeadOutlet @rendermode="InteractiveServerNoPrerender" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="InteractiveServerNoPrerender" />
     <ReconnectModal />
+    <script src="@Assets["_content/Vusos.UI/js/vusos.js"]"></script>
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 
 </html>
+
+@code {
+    private static readonly IComponentRenderMode InteractiveServerNoPrerender = new InteractiveServerRenderMode(prerender: false);
+}
