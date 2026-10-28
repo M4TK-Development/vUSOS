@@ -70,6 +70,7 @@ internal sealed class FakeHandler(Func<Recorded, HttpResponseMessage> responder)
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var body = request.Content is null ? "" : await request.Content.ReadAsStringAsync(cancellationToken);
         var headers = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (var h in request.Headers) headers[h.Key] = string.Join(", ", h.Value);

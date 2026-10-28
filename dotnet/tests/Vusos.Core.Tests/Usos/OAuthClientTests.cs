@@ -91,7 +91,7 @@ public class OAuthClientTests
         Assert.Equal("app-key", r.Headers["X-Vusos-App-Key"]);
         var body = Fx.Parse(r.Body);
         Assert.Equal("vusos://usos", body.GetProperty("callbackUrl").GetString());
-        Assert.Equal(["offline_access", "studies"], body.GetProperty("scopes").EnumerateArray().Select(x => x.GetString()).ToArray());
+        Assert.Equal(["offline_access", "studies"], body.GetProperty("scopes").EnumerateArray().Select(x => x.GetString()!).ToArray());
     }
 
     [Fact]
