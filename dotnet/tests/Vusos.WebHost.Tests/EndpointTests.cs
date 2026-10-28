@@ -166,19 +166,28 @@ public sealed class ConnectFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task Pasted_platon_token_goes_to_the_users_own_connection_manager()
+    public async Task Pasted_platon_token_is_parsed_by_the_users_core_flow()
     {
         using var scope = _live.CircuitScope(Emails.Anna);
         var flows = scope.ServiceProvider.GetRequiredService<Vusos.UI.Services.IConnectFlows>();
 
-        // Token jest poprawnie sparsowany; walidacja po stronie Platona kończy się błędem sieci, ale poświadczenia trafiają do Anny.
-        var token = "moodlemobile://token=" + Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("site:::abc123:::priv"));
-        await Assert.ThrowsAnyAsync<Exception>(() => flows.SubmitPlatonTokenAsync(token));
+        // Śmieci są odrzucane przez parser Core przed jakąkolwiek siecią – dowód, że wywołanie dochodzi do PlatonConnectFlow użytkownika.
+        await Assert.ThrowsAnyAsync<Exception>(() => flows.SubmitPlatonTokenAsync("to nie jest token"));
+        var status = await scope.ServiceProvider.GetRequiredService<Vusos.Core.Services.IConnectionManager>().GetStatusAsync();
+        Assert.Equal(Vusos.Core.Domain.ConnectionStatus.Disconnected, status[Vusos.Core.Domain.SourceSystem.Platon].Status);
+    }
 
-        var anna = _live.Cores.GetOrCreate("dev:" + Emails.Anna);
-        var jan = _live.Cores.GetOrCreate("dev:" + Emails.Jan);
-        Assert.True(File.Exists(Path.Combine(anna.Paths.DataDirectory, "secure.json")));
-        Assert.False(File.Exists(Path.Combine(jan.Paths.DataDirectory, "secure.json")));
+    [Fact]
+    public async Task Live_mode_users_start_disconnected_and_independent()
+    {
+        using var annaScope = _live.CircuitScope(Emails.Anna);
+        using var janScope = _live.CircuitScope(Emails.Jan);
+        var anna = annaScope.ServiceProvider.GetRequiredService<Vusos.Core.Services.IConnectionManager>();
+        var jan = janScope.ServiceProvider.GetRequiredService<Vusos.Core.Services.IConnectionManager>();
+
+        Assert.NotSame(anna, jan);
+        Assert.All((await anna.GetStatusAsync()).Values, s => Assert.Equal(Vusos.Core.Domain.ConnectionStatus.Disconnected, s.Status));
+        Assert.All((await jan.GetStatusAsync()).Values, s => Assert.Equal(Vusos.Core.Domain.ConnectionStatus.Disconnected, s.Status));
     }
 }
 

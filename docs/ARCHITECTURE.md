@@ -120,3 +120,19 @@ Adapters:Mode=mock|live
 - Hasło uczelniane + headless login po stronie serwera: MFA, odpowiedzialność, regulamin.
 - React Native / Flutter / Capacitor: wymóg C#; MAUI Blazor Hybrid daje jeden kod C#/Razor na wszystkie platformy.
 - Trzymanie tokenów użytkowników na serwerze: niepotrzebne przy kliencie natywnym; mniejsza odpowiedzialność.
+
+## Vusos.WebHost — izolacja użytkowników
+
+Core zaprojektowano dla jednego użytkownika na urządzeniu (singletony, jedna baza SQLite). W Blazor Server host tworzy
+**osobny kontener Core per użytkownik** (`UserCoreFactory`): własny katalog `{Storage:Root}/users/{hash}` z bazą i
+materiałami, `ISecureStore` szyfrowany Data Protection (purpose per użytkownik), `AdapterOptions.UserScope` = hash.
+Serwisy w głównym kontenerze to scoped forwardery do kontenera bieżącego użytkownika (`CircuitUser` z
+`AuthenticationStateProvider`). Nieużywane kontenery są zwalniane po 2 h bezczynności. Logowanie: cookie + OIDC Entra
+(`Auth:Mode=entra`) albo formularz dev (`Auth:Mode=dev`, blokowany poza Development).
+
+## Co trzeba zweryfikować na żywo
+
+Bez dostępu sieciowego do uczelni wszystkie kształty odpowiedzi USOS API / Moodle WS i selektory HTML pochodzą z
+dokumentacji i doświadczenia, nie z Vistula. Lista punktów: `grep -rn "TODO(verify)" dotnet/src`. Najważniejsze:
+adres instalacji USOS API dla Vistula, moduł `mailclient` (USOSmail), pola płatności, dostępność `mod_quiz_*` i
+`core_webservice_get_site_info` przez `lib/ajax/service.php`, czy admin Platona wymusił `forcedurlscheme`.

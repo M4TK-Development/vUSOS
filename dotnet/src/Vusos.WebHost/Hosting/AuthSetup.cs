@@ -62,7 +62,7 @@ public static partial class AuthSetup
             {
                 var uni = configuration.GetSection("University").Get<UniversityOptions>() ?? new UniversityOptions();
                 o.SignInScheme = CookieAuthenticationDefaults.AuthenticationScheme;
-                o.Authority = auth.Authority ?? uni.EntraAuthority;
+                o.Authority = string.IsNullOrWhiteSpace(auth.Authority) ? uni.EntraAuthority : auth.Authority;
                 o.ClientId = auth.ClientId;
                 o.ClientSecret = auth.ClientSecret;
                 o.ResponseType = OpenIdConnectResponseType.Code;

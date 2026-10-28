@@ -157,8 +157,8 @@
         catch (Exception) { }
     }
 
-    private Task ConnectUsos() => RunAsync("usos", Flows.StartUsosAsync, "Połączono z USOS.");
-    private Task ConnectPlaton() => RunAsync("platon", Flows.StartPlatonAsync, "Połączono z Platonem.");
+    private Task ConnectUsos() => RunAsync("usos", Flows.StartUsosAsync, "Dokończ logowanie do USOS w przeglądarce. Po powrocie status odświeży się automatycznie.");
+    private Task ConnectPlaton() => RunAsync("platon", Flows.StartPlatonAsync, "Dokończ logowanie do Platona w przeglądarce. Po powrocie status odświeży się automatycznie.");
     private Task SubmitUsosCookies() => RunAsync("usos-cookies", () => Flows.SubmitUsosCookiesAsync(_usosCookies.Trim()), "Zapisano cookies USOSweb.", () => _usosCookies = "");
     private Task SubmitPlatonToken() => RunAsync("platon-token", () => Flows.SubmitPlatonTokenAsync(_platonToken.Trim()), "Połączono z Platonem.", () => _platonToken = "");
     private Task SubmitPlatonCookies() => RunAsync("platon-cookies", () => Flows.SubmitPlatonCookiesAsync(_platonCookies.Trim(), _sesskey.Trim()), "Zapisano sesję Platona.", () => { _platonCookies = ""; _sesskey = ""; });

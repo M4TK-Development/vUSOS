@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Protocols;
 using Microsoft.IdentityModel.Protocols.OpenIdConnect;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Claims;
@@ -153,7 +154,8 @@ public sealed class EntraAuthTests : IDisposable
     {
         _factory = _entra.WithWebHostBuilder(b => b.ConfigureServices(s =>
             s.PostConfigure<OpenIdConnectOptions>(OpenIdConnectDefaults.AuthenticationScheme, o =>
-                o.Configuration = new OpenIdConnectConfiguration { AuthorizationEndpoint = "https://login.example.test/organizations/oauth2/v2.0/authorize" })));
+                o.ConfigurationManager = new StaticConfigurationManager<OpenIdConnectConfiguration>(
+                    new OpenIdConnectConfiguration { AuthorizationEndpoint = "https://login.example.test/organizations/oauth2/v2.0/authorize" }))));
     }
 
     public void Dispose()
