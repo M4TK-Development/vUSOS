@@ -54,7 +54,7 @@ wracają do aplikacji bez wklejania czegokolwiek.
 1. App registration w Entra ID (public client, multi-tenant, redirect `vusos://auth`) → `University:EntraClientId`.
 2. Consumer key USOS API z `/developers/` instalacji USOS → `Vusos.Server` (`Usos:ConsumerKey/Secret`) albo lokalnie w
    konfiguracji aplikacji (użytek własny).
-3. `Adapters:Mode=live`. Serwer: `docker build -f dotnet/src/Vusos.Server/Dockerfile .`
+3. `Adapters:Mode=live`. Serwer: `cd dotnet && docker build -f src/Vusos.Server/Dockerfile -t vusos-server .`
 
 ## Licencja
 
