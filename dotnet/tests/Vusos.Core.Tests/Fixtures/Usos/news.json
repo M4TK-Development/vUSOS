@@ -1,0 +1,6 @@
+[
+  { "id": 9001, "title": { "pl": "Zapisy na seminaria", "en": "Seminar enrolment" }, "content": { "pl": "<p>Zapisy od poniedziałku.</p>" },
+    "publication_date": "2025-10-20 10:00:00", "author": { "first_name": "Jan", "last_name": "Kowalski" }, "category": { "pl": "Dydaktyka" }, "url": "https://usosweb.vistula.example/news/9001" },
+  { "id": 9002, "title": "Zmiana godzin dziekanatu", "content": "<p>3-4 listopada nieczynne.</p>", "publication_date": "2025-10-14", "author": null, "category": null },
+  { "title": "bez id" }
+]

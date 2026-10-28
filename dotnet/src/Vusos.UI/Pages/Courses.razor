@@ -1,0 +1,57 @@
+@page "/kursy"
+@inject IConnectionManager Connections
+@inject IMaterialService Materials
+
+<PageTitle>Kursy – vUSOS</PageTitle>
+<PageHeader Title="Kursy" Subtitle="Platon" />
+
+<AsyncView T="CoursesData" Source="SourceSystem.Platon" Load="LoadAsync" IsEmpty="d => d.Courses.Count == 0" Context="d">
+    <Placeholder><Skeleton Rows="4" Cards="true" /></Placeholder>
+    <EmptyContent><div class="card"><EmptyState Title="Brak kursów" Hint="Nie jesteś zapisany na żadne kursy w Platonie." IconName="book" /></div></EmptyContent>
+    <ChildContent>
+        <div class="course-grid">
+            @foreach (var c in d.Courses)
+            {
+                var offline = d.Downloaded.GetValueOrDefault(c.Id);
+                var percent = c.Progress is { } p ? (int)Math.Round(Math.Clamp(p, 0, 100)) : (int?)null;
+                <a class="card course-card" href="/kursy/@Uri.EscapeDataString(c.Id)">
+                    <div class="item-meta">
+                        @if (!string.IsNullOrEmpty(c.Category)) { <Badge>@c.Category</Badge> }
+                        @if (offline > 0) { <Badge Tone="ok" Title="Pliki pobrane na urządzenie"><Icon Name="download" Size="12" /> offline: @offline @Fmt.Plural(offline, "plik", "pliki", "plików")</Badge> }
+                    </div>
+                    <h2 class="course-title">@c.FullName</h2>
+                    <p class="muted small">@c.ShortName</p>
+                    @if (percent is { } pc)
+                    {
+                        <div class="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@pc" aria-label="Postęp w kursie">
+                            <div class="progress-bar" style="width:@(pc)%"></div>
+                        </div>
+                        <p class="muted small">Ukończono @pc%</p>
+                    }
+                    else
+                    {
+                        <p class="muted small">Postęp niedostępny</p>
+                    }
+                </a>
+            }
+        </div>
+    </ChildContent>
+</AsyncView>
+
+@code {
+    private sealed record CoursesData(IReadOnlyList<LmsCourse> Courses, IReadOnlyDictionary<string, int> Downloaded);
+
+    private async Task<CoursesData> LoadAsync(CancellationToken ct)
+    {
+        var platon = await Connections.GetPlatonAsync(ct);
+        var courses = (await platon.GetCoursesAsync(ct)).OrderBy(c => c.FullName, StringComparer.Create(Fmt.Pl, true)).ToList();
+        var downloaded = new Dictionary<string, int>();
+        try
+        {
+            foreach (var g in (await Materials.ListAsync(null, ct)).Where(m => m.State == DownloadState.Done).GroupBy(m => m.CourseId))
+                downloaded[g.Key] = g.Count();
+        }
+        catch (Exception e) when (e is not OperationCanceledException) { /* licznik offline jest dodatkiem */ }
+        return new CoursesData(courses, downloaded);
+    }
+}

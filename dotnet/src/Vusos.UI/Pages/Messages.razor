@@ -1,0 +1,245 @@
+@page "/wiadomosci"
+@implements IDisposable
+@inject IConnectionManager Connections
+@inject ToastService Toasts
+
+<PageTitle>Wiadomości – vUSOS</PageTitle>
+<PageHeader Title="Wiadomości">
+    <Actions>
+        <button type="button" class="btn btn-primary" @onclick="() => OpenCompose(null, null)"><Icon Name="pen" Size="16" /> Nowa wiadomość</button>
+    </Actions>
+</PageHeader>
+
+<div class="msg-layout @(_selectedId is not null ? "has-selected" : null)">
+    <div class="msg-list-pane">
+        @if (_loading && _threads.Count == 0)
+        {
+            <Skeleton Rows="6" />
+        }
+        else
+        {
+            @if (_error is not null)
+            {
+                <ErrorState Error="_error" Source="SourceSystem.Usos" HasCache="_threads.Count > 0" Compact="true" OnRetry="ReloadAsync" />
+            }
+            @if (_threads.Count > 0)
+            {
+                <div class="data-meta"><CacheTag Source="SourceSystem.Usos" /></div>
+                <ul class="card flush thread-list">
+                    @foreach (var t in _threads)
+                    {
+                        var thread = t;
+                        var unread = thread.Unread && !_read.Contains(thread.Id);
+                        <li>
+                            <button type="button" class="thread @(_selectedId == thread.Id ? "selected" : null) @(unread ? "unread" : null)" @onclick="() => Select(thread)">
+                                <span class="thread-icon"><Icon Name="@(unread ? "mail" : "mail-open")" Size="18" /></span>
+                                <span class="thread-body">
+                                    <span class="thread-top"><span class="thread-from">@thread.From</span><span class="muted small">@Fmt.Date(thread.Date)</span></span>
+                                    <span class="thread-subject">@thread.Subject</span>
+                                    <span class="thread-preview muted">@thread.Preview</span>
+                                </span>
+                                @if (unread) { <span class="sr-only">nieprzeczytana</span> }
+                            </button>
+                        </li>
+                    }
+                </ul>
+                @if (_hasMore)
+                {
+                    <button type="button" class="btn btn-block" @onclick="LoadMoreAsync" disabled="@_loading">Wczytaj starsze</button>
+                }
+            }
+            else if (_error is null)
+            {
+                <div class="card"><EmptyState Title="Brak wiadomości" IconName="mail" /></div>
+            }
+        }
+    </div>
+
+    <div class="msg-detail-pane">
+        @if (_selectedId is null)
+        {
+            <div class="card detail-empty"><EmptyState Title="Wybierz wiadomość" Hint="Treść pojawi się tutaj." IconName="mail-open" /></div>
+        }
+        else
+        {
+            <div class="card">
+                <button type="button" class="btn btn-ghost back-btn" @onclick="() => _selectedId = null"><Icon Name="arrow-left" Size="16" /> Wróć do listy</button>
+                <AsyncView T="Message" Source="SourceSystem.Usos" Key="@_selectedId" ShowCacheTag="false" Load="LoadMessageAsync" Context="m">
+                    <Placeholder><Skeleton Rows="6" /></Placeholder>
+                    <ChildContent>
+                        <article class="message">
+                            <h2>@m.Thread.Subject</h2>
+                            <p class="muted small">Od: @m.Thread.From · Do: @string.Join(", ", m.Thread.To) · @Fmt.DateTime(m.Thread.Date)</p>
+                            <SafeHtml Html="@m.BodyHtml" />
+                            @if (m.Attachments.Count > 0)
+                            {
+                                <ul class="attachments">
+                                    @foreach (var a in m.Attachments)
+                                    {
+                                        <li><Icon Name="paperclip" Size="14" /> <ExternalLink Url="@a.Url">@a.Name</ExternalLink> <span class="muted small">@Fmt.Bytes(a.Size)</span></li>
+                                    }
+                                </ul>
+                            }
+                            <p><button type="button" class="btn" @onclick="() => OpenCompose(m.Thread.From, ReSubject(m.Thread.Subject))"><Icon Name="pen" Size="16" /> Odpowiedz</button></p>
+                        </article>
+                    </ChildContent>
+                </AsyncView>
+            </div>
+        }
+    </div>
+
+    <aside class="msg-contacts-pane">
+        <Card Title="Kontakt z dziekanatem" IconName="phone">
+            <AsyncView T="IReadOnlyList<Contact>" Source="SourceSystem.Usos" ShowCacheTag="false" Load="LoadContactsAsync" IsEmpty="c => c.Count == 0" Context="contacts">
+                <Placeholder><Skeleton Rows="3" /></Placeholder>
+                <EmptyContent><EmptyState Title="Brak danych kontaktowych" /></EmptyContent>
+                <ChildContent>
+                    <ul class="contacts">
+                        @foreach (var c in contacts)
+                        {
+                            <li>
+                                <p class="item-title">@c.Name</p>
+                                <p class="muted small">@c.Role</p>
+                                @if (!string.IsNullOrEmpty(c.Email))
+                                {
+                                    <p class="contact-line"><Icon Name="mail" Size="14" /> <a href="mailto:@c.Email">@c.Email</a>
+                                        <button type="button" class="link-btn" @onclick="() => OpenCompose(c.Email, null)">napisz w vUSOS</button></p>
+                                }
+                                @if (!string.IsNullOrEmpty(c.Phone)) { <p class="contact-line"><Icon Name="phone" Size="14" /> <a href="tel:@c.Phone">@c.Phone</a></p> }
+                                @if (!string.IsNullOrEmpty(c.Room)) { <p class="contact-line"><Icon Name="map-pin" Size="14" /> pok. @c.Room</p> }
+                                @if (!string.IsNullOrEmpty(c.Hours)) { <p class="contact-line"><Icon Name="clock" Size="14" /> @c.Hours</p> }
+                            </li>
+                        }
+                    </ul>
+                </ChildContent>
+            </AsyncView>
+        </Card>
+    </aside>
+</div>
+
+<Dialog Open="_composeOpen" OnClose="CloseCompose" Title="Nowa wiadomość">
+    <ChildContent>
+        <form class="form" @onsubmit="SendAsync" @onsubmit:preventDefault>
+            <label class="field">
+                <span>Do (adresy lub identyfikatory, oddzielone przecinkami)</span>
+                <input class="input" @bind="_to" @bind:event="oninput" required autocomplete="off" />
+            </label>
+            <label class="field">
+                <span>Temat</span>
+                <input class="input" @bind="_subject" @bind:event="oninput" required maxlength="200" />
+            </label>
+            <label class="field">
+                <span>Treść</span>
+                <textarea class="input" rows="8" @bind="_body" @bind:event="oninput" required></textarea>
+            </label>
+            @if (_sendError is not null) { <p class="text-danger small" role="alert">@_sendError</p> }
+            <div class="form-actions">
+                <button type="button" class="btn" @onclick="CloseCompose">Anuluj</button>
+                <button type="submit" class="btn btn-primary" disabled="@_sending">@(_sending ? "Wysyłanie…" : "Wyślij")</button>
+            </div>
+        </form>
+    </ChildContent>
+</Dialog>
+
+@code {
+    private const int PageSize = 30;
+
+    private readonly List<MessageThread> _threads = [];
+    private readonly HashSet<string> _read = [];
+    private bool _loading = true;
+    private bool _hasMore;
+    private Exception? _error;
+    private string? _selectedId;
+
+    private bool _composeOpen;
+    private string _to = "", _subject = "", _body = "";
+    private bool _sending;
+    private string? _sendError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Connections.Changed += OnConnectionChanged;
+        await ReloadAsync();
+    }
+
+    private void OnConnectionChanged(object? sender, SourceSystem s)
+    {
+        if (s == SourceSystem.Usos) _ = InvokeAsync(async () => { await ReloadAsync(); StateHasChanged(); });
+    }
+
+    private async Task ReloadAsync()
+    {
+        _threads.Clear();
+        await LoadPageAsync();
+    }
+
+    private Task LoadMoreAsync() => LoadPageAsync();
+
+    private async Task LoadPageAsync()
+    {
+        _loading = true;
+        _error = null;
+        try
+        {
+            var usos = await Connections.GetUsosAsync();
+            var page = await usos.ListMessagesAsync(PageSize, _threads.Count);
+            _threads.AddRange(page.Where(p => _threads.All(t => t.Id != p.Id)));
+            _hasMore = page.Count >= PageSize;
+        }
+        catch (Exception e) { _error = e; }
+        _loading = false;
+    }
+
+    private void Select(MessageThread t)
+    {
+        _selectedId = t.Id;
+    }
+
+    private async Task<Message> LoadMessageAsync(CancellationToken ct)
+    {
+        var id = _selectedId!;
+        var usos = await Connections.GetUsosAsync(ct);
+        var message = await usos.GetMessageAsync(id, ct);
+        _read.Add(id);
+        _ = InvokeAsync(StateHasChanged);
+        return message;
+    }
+
+    private async Task<IReadOnlyList<Contact>> LoadContactsAsync(CancellationToken ct)
+    {
+        try { return await (await Connections.GetUsosAsync(ct)).GetDeanOfficeContactsAsync(ct); }
+        catch (AdapterNotSupportedException) { return []; }
+    }
+
+    private static string ReSubject(string subject) => subject.StartsWith("Re:", StringComparison.OrdinalIgnoreCase) ? subject : "Re: " + subject;
+
+    private void OpenCompose(string? to, string? subject)
+    {
+        _to = to ?? "";
+        _subject = subject ?? "";
+        _body = "";
+        _sendError = null;
+        _composeOpen = true;
+    }
+
+    private void CloseCompose() => _composeOpen = false;
+
+    private async Task SendAsync()
+    {
+        var recipients = _to.Split([',', ';', ' '], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (recipients.Length == 0 || string.IsNullOrWhiteSpace(_subject) || string.IsNullOrWhiteSpace(_body)) return;
+        _sending = true;
+        _sendError = null;
+        try
+        {
+            var usos = await Connections.GetUsosAsync();
+            await usos.SendMessageAsync(recipients, _subject.Trim(), _body);
+            Toasts.Success("Wiadomość wysłana.");
+            _composeOpen = false;
+        }
+        catch (Exception e) { _sendError = e.Message; }
+        _sending = false;
+    }
+
+    public void Dispose() => Connections.Changed -= OnConnectionChanged;
+}

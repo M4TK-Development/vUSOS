@@ -1,0 +1,88 @@
+@page "/platnosci"
+@inject IConnectionManager Connections
+
+<PageTitle>Płatności – vUSOS</PageTitle>
+<PageHeader Title="Płatności" />
+
+<AsyncView T="PaymentsSummary" Source="SourceSystem.Usos" Load="LoadAsync" Context="d">
+    <Placeholder><Skeleton Rows="4" Cards="true" /></Placeholder>
+    <ChildContent>
+        @{
+            var accounts = d.Payments.Select(p => p.AccountNumber).Where(a => !string.IsNullOrWhiteSpace(a)).Distinct().Cast<string>().ToList();
+            var ordered = d.Payments
+                .OrderBy(p => p.State is PaymentState.Paid or PaymentState.Cancelled ? 1 : 0)
+                .ThenBy(p => p.DueDate ?? DateOnly.MaxValue)
+                .ToList();
+        }
+        <div class="stat-grid">
+            <div class="card stat">
+                <p class="muted small">Do zapłaty</p>
+                <p class="big-number">@Fmt.Money(d.TotalDue, d.Currency)</p>
+            </div>
+            <div class="card stat @(d.TotalOverdue > 0 ? "card-danger" : null)">
+                <p class="muted small">W tym po terminie</p>
+                <p class="big-number @(d.TotalOverdue > 0 ? "text-danger" : null)">@Fmt.Money(d.TotalOverdue, d.Currency)</p>
+            </div>
+        </div>
+
+        @if (accounts.Count > 0)
+        {
+            <Card Title="Numer konta do wpłat" IconName="wallet">
+                @foreach (var a in accounts)
+                {
+                    <div class="account-row">
+                        <code class="account">@a</code>
+                        <CopyButton Text="@a" Label="Kopiuj numer" SuccessMessage="Skopiowano numer konta." />
+                    </div>
+                }
+                <p class="muted small">Przy przelewie wpisz tytuł z kolumny „Opis”, aby wpłata została przypisana automatycznie.</p>
+            </Card>
+        }
+
+        @if (d.Payments.Count == 0)
+        {
+            <div class="card"><EmptyState Title="Brak płatności" IconName="wallet" /></div>
+        }
+        else
+        {
+            <div class="card flush">
+                <table class="table responsive">
+                    <thead>
+                        <tr><th>Opis</th><th>Termin</th><th class="num">Kwota</th><th class="num">Wpłacono</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in ordered)
+                        {
+                            <tr class="@(p.State == PaymentState.Overdue ? "row-danger" : null)">
+                                <td data-label="Opis">
+                                    <p class="item-title">@(string.IsNullOrEmpty(p.Description.Pl) ? p.Type : p.Description.Pl)</p>
+                                    <p class="muted small">@p.Type</p>
+                                </td>
+                                <td data-label="Termin" class="nowrap">@Fmt.Date(p.DueDate)</td>
+                                <td data-label="Kwota" class="num nowrap">
+                                    @Fmt.Money(p.Amount, p.Currency)
+                                    @if (p.Interest is > 0) { <p class="small text-danger">+ odsetki @Fmt.Money(p.Interest.Value, p.Currency)</p> }
+                                </td>
+                                <td data-label="Wpłacono" class="num nowrap">@Fmt.Money(p.Paid, p.Currency)</td>
+                                <td data-label="Status"><PaymentStateBadge State="p.State" /></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </ChildContent>
+</AsyncView>
+
+@code {
+    private async Task<PaymentsSummary> LoadAsync(CancellationToken ct)
+    {
+        var usos = await Connections.GetUsosAsync(ct);
+        var payments = await usos.GetPaymentsAsync(ct);
+        var currency = payments.Select(p => p.Currency).FirstOrDefault() ?? "PLN";
+        var open = payments.Where(p => p.State is PaymentState.Unpaid or PaymentState.PartiallyPaid or PaymentState.Overdue).ToList();
+        var due = open.Sum(p => p.Outstanding);
+        var overdue = open.Where(p => p.State == PaymentState.Overdue).Sum(p => p.Outstanding);
+        return new PaymentsSummary(payments, due, overdue, currency);
+    }
+}

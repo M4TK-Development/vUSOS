@@ -1,0 +1,53 @@
+@page "/testy/podejscie/{AttemptId}/przeglad"
+@inject IQuizService Quizzes
+
+<PageTitle>Przegląd testu – vUSOS</PageTitle>
+<a href="/testy" class="back-link"><Icon Name="arrow-left" Size="16" /> Wszystkie testy</a>
+<PageHeader Title="Przegląd testu" />
+
+<AsyncView T="ReviewResult" Source="SourceSystem.Platon" Key="@AttemptId" Load="LoadAsync" Context="result">
+    <Placeholder><Skeleton Rows="5" /></Placeholder>
+    <ChildContent>
+        @{ var review = result.Review; }
+        @if (review is null)
+        {
+            <div class="card"><EmptyState Title="Przegląd niedostępny" IconName="info"
+                Hint="Wynik pojawi się po zsynchronizowaniu testu z Platonem albo prowadzący wyłączył przegląd odpowiedzi." /></div>
+        }
+        else
+        {
+            <div class="stat-grid">
+                <div class="card stat">
+                    <p class="muted small">Wynik</p>
+                    <p class="big-number">@(review.Grade is { } g ? g.ToString("0.##", Fmt.Pl) : "—")<span class="muted small"> @(review.MaxGrade is { } mg ? "/ " + mg.ToString("0.##", Fmt.Pl) : "")</span></p>
+                </div>
+                <div class="card stat">
+                    <p class="muted small">Podejście @review.Attempt.Attempt</p>
+                    <p>
+                        @(review.Attempt.TimeStart is { } ts ? "start: " + Fmt.DateTime(ts) : "")
+                        @if (review.Attempt.TimeFinish is { } tf) { <br /><text>koniec: @Fmt.DateTime(tf)</text> }
+                    </p>
+                </div>
+            </div>
+            @foreach (var q in review.Questions.OrderBy(q => q.Slot))
+            {
+                <section class="card question" aria-label="Pytanie @q.Slot">
+                    <header class="question-head">
+                        <span class="q-num">Pytanie @q.Slot</span>
+                        @if (q.Mark is { } m && q.MaxMark is { } max) { <Badge Tone="@(m >= max ? "ok" : m > 0 ? "info" : "danger")">@m.ToString("0.##", Fmt.Pl) / @max.ToString("0.##", Fmt.Pl)</Badge> }
+                        @if (!string.IsNullOrEmpty(q.Status)) { <span class="muted small">@q.Status</span> }
+                    </header>
+                    <SafeHtml Html="@q.Html" Profile="SanitizeProfile.QuizReview" Class="question-html" />
+                </section>
+            }
+        }
+    </ChildContent>
+</AsyncView>
+
+@code {
+    private sealed record ReviewResult(QuizAttemptReview? Review);
+
+    [Parameter] public string AttemptId { get; set; } = "";
+
+    private async Task<ReviewResult> LoadAsync(CancellationToken ct) => new(await Quizzes.GetReviewAsync(AttemptId, ct));
+}

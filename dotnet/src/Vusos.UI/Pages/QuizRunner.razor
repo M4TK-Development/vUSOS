@@ -1,0 +1,320 @@
+@page "/testy/podejscie/{AttemptId}"
+@implements IAsyncDisposable
+@inject IQuizService Quizzes
+@inject IConnectivity Connectivity
+@inject VusosJs Js
+@inject NavigationManager Nav
+@inject ToastService Toasts
+@inject TimeProvider Clock
+
+<PageTitle>@(_quiz?.Name ?? "Test") – vUSOS</PageTitle>
+
+@if (_loading)
+{
+    <PageHeader Title="Test" />
+    <Skeleton Rows="5" />
+}
+else if (_error is not null)
+{
+    <PageHeader Title="Test" />
+    <ErrorState Error="_error" Source="SourceSystem.Platon" OnRetry="LoadAsync" />
+    <p><a class="btn" href="/testy">Wróć do listy testów</a></p>
+}
+else if (_session is { } session)
+{
+    @if (_finished)
+    {
+        <PageHeader Title="@(_quiz?.Name ?? "Test")" Subtitle="Test zakończony" />
+        <div class="card">
+            <EmptyState Title="Test został zakończony" IconName="check-circle"
+                        Hint="@(session.HasPendingSync ? "Zakończenie czeka na synchronizację – wyślemy je po odzyskaniu połączenia. Wynik zobaczysz po zsynchronizowaniu." : "Odpowiedzi zostały wysłane.")">
+                @if (session.HasPendingSync && Connectivity.IsOnline)
+                {
+                    <button type="button" class="btn btn-primary" @onclick="SyncAsync" disabled="@_syncing">Synchronizuj teraz</button>
+                }
+                @if (!session.HasPendingSync)
+                {
+                    <a class="btn btn-primary" href="/testy/podejscie/@AttemptId/przeglad">Zobacz wynik</a>
+                }
+                <a class="btn" href="/testy">Wróć do listy testów</a>
+            </EmptyState>
+        </div>
+    }
+    else
+    {
+        <div class="quiz-bar">
+            <div class="quiz-bar-title">
+                <h1>@(_quiz?.Name ?? "Test")</h1>
+                <span class="muted small">Strona @(_pageIndex + 1) z @_pages.Count</span>
+            </div>
+            <div class="quiz-bar-status">
+                @if (_deadline is { } dl) { <QuizTimer Deadline="dl" OnExpired="OnTimeUpAsync" /> }
+                <span class="save-state small muted" aria-live="polite">
+                    @if (_saving) { <text>Zapisywanie…</text> }
+                    else if (_saveError is not null) { <span class="text-danger">Nie zapisano: @_saveError</span> }
+                    else if (_lastSaved is { } ls) { <text>Zapisano @Fmt.Time(ls)</text> }
+                </span>
+            </div>
+        </div>
+
+        @if (session.IsOffline || !Connectivity.IsOnline)
+        {
+            <div class="banner banner-warn" role="status">
+                <Icon Name="cloud-off" Size="18" />
+                <span class="banner-text"><strong>Tryb offline.</strong> Odpowiedzi zapisują się na urządzeniu i zostaną wysłane po odzyskaniu sieci.</span>
+            </div>
+        }
+        @if (session.HasPendingSync)
+        {
+            <div class="banner banner-info" role="status">
+                <Icon Name="refresh" Size="18" />
+                <span class="banner-text">Część odpowiedzi czeka na synchronizację z Platonem.</span>
+                @if (Connectivity.IsOnline) { <button type="button" class="btn btn-sm" @onclick="SyncAsync" disabled="@_syncing">Synchronizuj</button> }
+            </div>
+        }
+
+        <div id="@ContainerId" class="quiz-page" @key="_pageIndex">
+            @foreach (var q in PageQuestions)
+            {
+                <section class="card question" aria-label="Pytanie @q.Slot">
+                    <header class="question-head">
+                        <span class="q-num">Pytanie @q.Slot</span>
+                        @if (q.MaxMark is { } mm) { <span class="muted small">(@mm.ToString("0.##", Fmt.Pl) pkt)</span> }
+                    </header>
+                    <SafeHtml Html="@q.Html" Profile="SanitizeProfile.QuizForm" Class="question-html" />
+                </section>
+            }
+            @if (PageQuestions.Count == 0)
+            {
+                <div class="card"><EmptyState Title="Brak pytań na tej stronie" /></div>
+            }
+        </div>
+
+        <nav class="quiz-nav" aria-label="Strony testu">
+            <button type="button" class="btn" @onclick="() => GoToAsync(_pageIndex - 1)" disabled="@(_pageIndex == 0 || _busy)"><Icon Name="chevron-left" Size="16" /> Poprzednia</button>
+            <div class="page-dots">
+                @for (var i = 0; i < _pages.Count; i++)
+                {
+                    var idx = i;
+                    <button type="button" class="dot-btn @(idx == _pageIndex ? "active" : null)" @onclick="() => GoToAsync(idx)"
+                            aria-label="Strona @(idx + 1)" aria-current="@(idx == _pageIndex ? "page" : null)" disabled="@_busy">@(idx + 1)</button>
+                }
+            </div>
+            @if (_pageIndex < _pages.Count - 1)
+            {
+                <button type="button" class="btn btn-primary" @onclick="() => GoToAsync(_pageIndex + 1)" disabled="@_busy">Następna <Icon Name="chevron-right" Size="16" /></button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-primary" @onclick="() => _confirmFinish = true" disabled="@_busy">Zakończ</button>
+            }
+        </nav>
+        <p class="center"><button type="button" class="link-btn" @onclick="() => _confirmFinish = true">Zakończ test</button></p>
+    }
+}
+
+<Dialog Open="_confirmFinish" OnClose="() => _confirmFinish = false" Title="Zakończyć test?">
+    <ChildContent>
+        <p>Po zakończeniu nie będzie można zmienić odpowiedzi.</p>
+        @if (_session is { } s && (s.IsOffline || !Connectivity.IsOnline))
+        {
+            <p class="muted small">Jesteś offline – zakończenie testu zostanie wysłane do Platona, gdy odzyskasz połączenie.</p>
+        }
+        @if (_finishError is not null) { <p class="text-danger small" role="alert">@_finishError</p> }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn" @onclick="() => _confirmFinish = false">Wróć do testu</button>
+        <button type="button" class="btn btn-primary" @onclick="FinishAsync" disabled="@_busy">@(_busy ? "Kończenie…" : "Zakończ test")</button>
+    </Footer>
+</Dialog>
+
+@code {
+    private const string ContainerId = "quiz-page";
+    private static readonly TimeSpan AutosaveEvery = TimeSpan.FromSeconds(30);
+
+    [Parameter] public string AttemptId { get; set; } = "";
+
+    private QuizSession? _session;
+    private LmsQuiz? _quiz;
+    private Exception? _error;
+    private bool _loading = true;
+    private bool _finished;
+    private bool _confirmFinish;
+    private bool _busy;
+    private bool _saving;
+    private bool _syncing;
+    private string? _saveError;
+    private string? _finishError;
+    private DateTimeOffset? _lastSaved;
+    private DateTimeOffset? _deadline;
+
+    private List<int> _pages = [];
+    private int _pageIndex;
+    private bool _restorePending;
+    private List<QuizAnswer> _answers = [];
+
+    private string? _loadedFor;
+    private Timer? _autosave;
+    private readonly SemaphoreSlim _gate = new(1, 1);
+
+    private IReadOnlyList<QuizQuestion> PageQuestions => _session is null || _pages.Count == 0
+        ? []
+        : _session.Data.Questions.Where(q => q.Page == _pages[_pageIndex]).OrderBy(q => q.Slot).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_loadedFor == AttemptId) return;
+        _loadedFor = AttemptId;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _finished = false;
+        StopAutosave();
+        try
+        {
+            var session = await Quizzes.ResumeAttemptAsync(AttemptId);
+            var attempt = session.Data.Attempt;
+            if (attempt.State is QuizAttemptState.Finished or QuizAttemptState.Abandoned)
+            {
+                Nav.NavigateTo($"/testy/podejscie/{Uri.EscapeDataString(AttemptId)}/przeglad", replace: true);
+                return;
+            }
+
+            _session = session;
+            _answers = session.LocalAnswers.ToList();
+            _pages = session.Data.Questions.Select(q => q.Page).Distinct().Order().ToList();
+            _pageIndex = Math.Max(0, _pages.IndexOf(attempt.CurrentPage ?? _pages.FirstOrDefault()));
+            _restorePending = true;
+
+            _quiz = null;
+            try { _quiz = (await Quizzes.GetQuizzesAsync()).FirstOrDefault(q => q.Id == attempt.QuizId); }
+            catch (Exception e) when (e is not OperationCanceledException) { /* bez nazwy i limitu czasu też da się rozwiązywać */ }
+            _deadline = ComputeDeadline(attempt, _quiz);
+            _autosave = new Timer(_ => _ = InvokeAsync(() => SaveAsync()), null, AutosaveEvery, AutosaveEvery);
+        }
+        catch (Exception e) { _error = e; }
+        _loading = false;
+    }
+
+    private static DateTimeOffset? ComputeDeadline(QuizAttempt attempt, LmsQuiz? quiz)
+    {
+        DateTimeOffset? byLimit = attempt.TimeStart is { } start && quiz?.TimeLimitSeconds is { } secs and > 0
+            ? start.AddSeconds(secs) : null;
+        DateTimeOffset? byClose = quiz?.TimeClose;
+        if (byLimit is null) return null; // zamknięcie quizu bez limitu czasu nie wyłącza testu w trakcie – decyduje serwer
+        return byClose is { } close && close < byLimit ? close : byLimit;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_restorePending && !_loading && _error is null && _session is not null && !_finished)
+        {
+            _restorePending = false;
+            await Js.RestoreQuizAsync(ContainerId, _answers);
+        }
+    }
+
+    private void Merge(IReadOnlyList<QuizAnswer> collected)
+    {
+        if (collected.Count == 0) return;
+        var names = collected.Select(a => a.Name).ToHashSet();
+        _answers.RemoveAll(a => names.Contains(a.Name));
+        _answers.AddRange(collected);
+    }
+
+    /// <summary>Zbiera pola z bieżącej strony i zapisuje całość (lokalnie + online, jeśli się da).</summary>
+    private async Task<bool> SaveAsync(bool collect = true)
+    {
+        if (_session is null || _finished) return true;
+        await _gate.WaitAsync();
+        try
+        {
+            _saving = true;
+            StateHasChanged();
+            if (collect) Merge(await Js.CollectQuizAsync(ContainerId));
+            _session = await Quizzes.SaveAnswersAsync(AttemptId, _answers.ToList());
+            _lastSaved = Clock.GetUtcNow();
+            _saveError = null;
+            return true;
+        }
+        catch (Exception e)
+        {
+            _saveError = e.Message;
+            return false;
+        }
+        finally
+        {
+            _saving = false;
+            _gate.Release();
+            StateHasChanged();
+        }
+    }
+
+    private async Task GoToAsync(int index)
+    {
+        if (index < 0 || index >= _pages.Count || index == _pageIndex) return;
+        _busy = true;
+        await SaveAsync();
+        _pageIndex = index;
+        _restorePending = true;
+        _busy = false;
+        await Js.ScrollTopAsync();
+    }
+
+    private async Task FinishAsync()
+    {
+        if (_session is null) return;
+        _busy = true;
+        _finishError = null;
+        try
+        {
+            await SaveAsync();
+            var result = await Quizzes.FinishAsync(AttemptId);
+            _session = result;
+            _finished = true;
+            _confirmFinish = false;
+            StopAutosave();
+            _answers = [];
+            if (!result.HasPendingSync && Connectivity.IsOnline)
+                Nav.NavigateTo($"/testy/podejscie/{Uri.EscapeDataString(AttemptId)}/przeglad");
+        }
+        catch (Exception e) { _finishError = e.Message; }
+        _busy = false;
+    }
+
+    private async Task OnTimeUpAsync()
+    {
+        if (_finished) return;
+        Toasts.Show("Czas minął – kończę test i wysyłam odpowiedzi.", ToastKind.Info);
+        await FinishAsync();
+    }
+
+    private async Task SyncAsync()
+    {
+        _syncing = true;
+        try
+        {
+            await Quizzes.SyncPendingAsync();
+            _session = await Quizzes.ResumeAttemptAsync(AttemptId);
+            Toasts.Success("Zsynchronizowano.");
+        }
+        catch (Exception e) { Toasts.Error("Synchronizacja nie powiodła się: " + e.Message); }
+        _syncing = false;
+    }
+
+    private void StopAutosave()
+    {
+        _autosave?.Dispose();
+        _autosave = null;
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        StopAutosave();
+        return ValueTask.CompletedTask;
+    }
+}

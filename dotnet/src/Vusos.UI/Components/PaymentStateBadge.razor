@@ -1,0 +1,21 @@
+<Badge Tone="@Tone">@Label</Badge>
+
+@code {
+    [Parameter, EditorRequired] public PaymentState State { get; set; }
+    private string Label => State switch
+    {
+        PaymentState.Unpaid => "Do zapłaty",
+        PaymentState.PartiallyPaid => "Częściowo opłacone",
+        PaymentState.Paid => "Opłacone",
+        PaymentState.Overdue => "Po terminie",
+        _ => "Anulowane",
+    };
+    private string Tone => State switch
+    {
+        PaymentState.Unpaid => "warn",
+        PaymentState.PartiallyPaid => "info",
+        PaymentState.Paid => "ok",
+        PaymentState.Overdue => "danger",
+        _ => "neutral",
+    };
+}

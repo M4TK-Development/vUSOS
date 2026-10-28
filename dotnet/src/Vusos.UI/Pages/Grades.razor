@@ -1,0 +1,168 @@
+@page "/oceny"
+@inject IConnectionManager Connections
+@inject TimeProvider Clock
+
+<PageTitle>Oceny – vUSOS</PageTitle>
+<PageHeader Title="Oceny" />
+
+<Tabs Items="TabItems" @bind-Active="_tab" Label="Źródło ocen" />
+
+@if (_tab == "usos")
+{
+    <AsyncView T="GradesData" Source="SourceSystem.Usos" Load="LoadUsosAsync" OnLoaded="OnLoaded" Context="data">
+        <Placeholder><Skeleton Rows="4" Cards="true" /></Placeholder>
+        <ChildContent>
+            @if (data.Terms.Count == 0 && data.Grades.Count == 0)
+            {
+                <div class="card"><EmptyState Title="Brak ocen" Hint="Oceny pojawią się tutaj po wpisaniu ich przez prowadzących." IconName="grades" /></div>
+            }
+            else
+            {
+                var inTerm = data.Grades.Where(g => g.TermId == _termId).ToList();
+                var groups = inTerm.GroupBy(g => g.CourseId)
+                    .Select(gr => new { gr.Key, Name = gr.First().CourseName.Pl, Items = gr.OrderBy(x => x.ExamSession ?? 0).ThenBy(x => x.DateModified).ToList() })
+                    .OrderBy(x => x.Name, StringComparer.Create(Fmt.Pl, true)).ToList();
+                var termAvg = GradeMath.Average(inTerm);
+                var allAvg = GradeMath.Average(data.Grades);
+                <div class="toolbar">
+                    <label class="field-inline">
+                        <span>Semestr</span>
+                        <select class="input" @bind="_termId" @bind:after="StateHasChanged">
+                            @foreach (var t in data.Terms.OrderByDescending(t => t.StartDate))
+                            {
+                                <option value="@t.Id">@t.Name.Pl@(t.IsCurrent ? " (bieżący)" : "")</option>
+                            }
+                        </select>
+                    </label>
+                </div>
+                <div class="stat-grid">
+                    <div class="card stat">
+                        <p class="muted small">Średnia z semestru</p>
+                        <p class="big-number">@Fmt.Average(termAvg)</p>
+                    </div>
+                    <div class="card stat">
+                        <p class="muted small">Średnia ze wszystkich semestrów</p>
+                        <p class="big-number">@Fmt.Average(allAvg)</p>
+                    </div>
+                </div>
+                <p class="muted small note"><Icon Name="info" Size="14" /> Średnia arytmetyczna nieważona (bez wag ECTS), liczona z ocen liczbowych, które USOS wlicza do średniej. To wartość orientacyjna – nie zastępuje średniej ze studiów w dziekanacie.</p>
+
+                @if (groups.Count == 0)
+                {
+                    <div class="card"><EmptyState Title="Brak ocen w tym semestrze" IconName="grades" /></div>
+                }
+                else
+                {
+                    <div class="grade-groups">
+                        @foreach (var grp in groups)
+                        {
+                            <Card Title="@grp.Name">
+                                <ul class="list">
+                                    @foreach (var g in grp.Items)
+                                    {
+                                        <li class="list-row">
+                                            <Badge Tone="@GradeMath.Tone(g)" Class="grade-badge">@g.ValueSymbol</Badge>
+                                            <div class="grow">
+                                                <p class="item-title">
+                                                    @(string.IsNullOrEmpty(g.ClassType) ? "Ocena" : Fmt.ClassTypeLabel(g.ClassType))
+                                                    @if (g.ExamSession is { } es) { <span class="muted"> · termin @es</span> }
+                                                </p>
+                                                <p class="item-meta muted">
+                                                    @if (g.ValueDescription is { } vd && !string.IsNullOrEmpty(vd.Pl)) { <span>@vd.Pl</span> }
+                                                    @if (g.DateModified is { } dm) { <span>@Fmt.Date(dm)</span> }
+                                                    @if (!string.IsNullOrEmpty(g.GradedBy)) { <span>@g.GradedBy</span> }
+                                                    @if (!g.CountsIntoAverage) { <span>nie wlicza się do średniej</span> }
+                                                </p>
+                                                @if (!string.IsNullOrEmpty(g.Comment)) { <p class="small">@g.Comment</p> }
+                                            </div>
+                                        </li>
+                                    }
+                                </ul>
+                            </Card>
+                        }
+                    </div>
+                }
+            }
+        </ChildContent>
+    </AsyncView>
+}
+else
+{
+    <AsyncView T="IReadOnlyList<LmsCourse>" Source="SourceSystem.Platon" Load="LoadCoursesAsync"
+               IsEmpty="c => c.Count == 0" Context="courses">
+        <Placeholder><Skeleton Rows="3" Cards="true" /></Placeholder>
+        <EmptyContent><div class="card"><EmptyState Title="Brak kursów w Platonie" IconName="book" /></div></EmptyContent>
+        <ChildContent>
+            @{ var selected = courses.FirstOrDefault(c => c.Id == _courseId) ?? courses[0]; }
+            <div class="toolbar">
+                <label class="field-inline">
+                    <span>Kurs</span>
+                    <select class="input" value="@selected.Id" @onchange="e => _courseId = e.Value?.ToString()">
+                        @foreach (var c in courses)
+                        {
+                            <option value="@c.Id" selected="@(c.Id == selected.Id)">@c.FullName</option>
+                        }
+                    </select>
+                </label>
+            </div>
+            <AsyncView T="IReadOnlyList<LmsGradeItem>" Source="SourceSystem.Platon" Key="@selected.Id" ShowCacheTag="false"
+                       Load="ct => LoadPlatonGradesAsync(selected.Id, ct)" IsEmpty="g => g.Count == 0" Context="items">
+                <EmptyContent><div class="card"><EmptyState Title="Brak ocen w tym kursie" Hint="Prowadzący nie wystawił jeszcze ocen w Platonie." IconName="grades" /></div></EmptyContent>
+                <ChildContent>
+                    <div class="card flush">
+                        <ul class="list">
+                            @foreach (var i in items)
+                            {
+                                var total = i.ItemType is "course" or "category";
+                                <li class="list-row @(total ? "row-total" : null)">
+                                    <div class="grow">
+                                        <p class="item-title">@(total ? "Razem: " : "")@i.ItemName</p>
+                                        @if (i.DateGraded is { } dg) { <p class="item-meta muted">oceniono @Fmt.Date(dg)</p> }
+                                        @if (!string.IsNullOrEmpty(i.FeedbackHtml)) { <SafeHtml Html="@i.FeedbackHtml" Class="small muted" /> }
+                                    </div>
+                                    <div class="right">
+                                        <strong>@(i.GradeFormatted ?? "—")</strong>
+                                        @if (!string.IsNullOrEmpty(i.Percentage)) { <p class="muted small">@i.Percentage</p> }
+                                    </div>
+                                </li>
+                            }
+                        </ul>
+                    </div>
+                </ChildContent>
+            </AsyncView>
+        </ChildContent>
+    </AsyncView>
+}
+
+@code {
+    private sealed record GradesData(IReadOnlyList<Term> Terms, IReadOnlyList<Grade> Grades);
+
+    private static readonly IReadOnlyList<Tabs.TabItem> TabItems =
+        [new("usos", "Oceny z USOS"), new("platon", "Oceny z Platona")];
+
+    private string _tab = "usos";
+    private string? _termId;
+    private string? _courseId;
+
+    private async Task<GradesData> LoadUsosAsync(CancellationToken ct)
+    {
+        var usos = await Connections.GetUsosAsync(ct);
+        var terms = await usos.GetTermsAsync(ct);
+        var grades = await usos.GetGradesAsync(null, ct);
+        return new GradesData(terms, grades);
+    }
+
+    private void OnLoaded(GradesData data)
+    {
+        if (_termId is not null && data.Terms.Any(t => t.Id == _termId)) return;
+        _termId = (data.Terms.FirstOrDefault(t => t.IsCurrent)
+                   ?? data.Terms.OrderByDescending(t => t.StartDate).FirstOrDefault(t => data.Grades.Any(g => g.TermId == t.Id))
+                   ?? data.Terms.OrderByDescending(t => t.StartDate).FirstOrDefault())?.Id;
+    }
+
+    private async Task<IReadOnlyList<LmsCourse>> LoadCoursesAsync(CancellationToken ct)
+        => (await (await Connections.GetPlatonAsync(ct)).GetCoursesAsync(ct)).OrderBy(c => c.FullName, StringComparer.Create(Fmt.Pl, true)).ToList();
+
+    private async Task<IReadOnlyList<LmsGradeItem>> LoadPlatonGradesAsync(string courseId, CancellationToken ct)
+        => await (await Connections.GetPlatonAsync(ct)).GetGradesAsync(courseId, ct);
+}

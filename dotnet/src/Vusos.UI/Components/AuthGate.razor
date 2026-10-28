@@ -1,0 +1,35 @@
+@implements IDisposable
+@inject IAuthSession Auth
+@inject NavigationManager Nav
+
+@if (Auth.IsSignedIn)
+{
+    @ChildContent
+}
+else
+{
+    <div class="auth-wait" role="status"><Skeleton Rows="3" /></div>
+}
+
+@code {
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Auth.Changed += OnChanged;
+        RedirectIfNeeded();
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        RedirectIfNeeded();
+        StateHasChanged();
+    });
+
+    private void RedirectIfNeeded()
+    {
+        if (!Auth.IsSignedIn) Nav.NavigateTo("/logowanie", replace: true);
+    }
+
+    public void Dispose() => Auth.Changed -= OnChanged;
+}

@@ -1,0 +1,47 @@
+@implements IDisposable
+@inject TimeProvider Clock
+
+<div class="quiz-timer @Tone" role="timer" aria-label="Pozostały czas">
+    <Icon Name="clock" Size="16" />
+    <span class="mono">@Text</span>
+</div>
+
+@code {
+    private Timer? _timer;
+    private bool _expiredFired;
+
+    /// <summary>Moment, w którym kończy się czas. Null = bez limitu (nic nie wyświetlamy).</summary>
+    [Parameter, EditorRequired] public DateTimeOffset Deadline { get; set; }
+    [Parameter] public EventCallback OnExpired { get; set; }
+
+    private TimeSpan Remaining => Deadline - Clock.GetUtcNow();
+
+    private string Text
+    {
+        get
+        {
+            var r = Remaining;
+            if (r < TimeSpan.Zero) r = TimeSpan.Zero;
+            return r.TotalHours >= 1 ? $"{(int)r.TotalHours}:{r.Minutes:00}:{r.Seconds:00}" : $"{r.Minutes:00}:{r.Seconds:00}";
+        }
+    }
+
+    private string Tone => Remaining < TimeSpan.FromMinutes(1) ? "danger" : Remaining < TimeSpan.FromMinutes(5) ? "warn" : "";
+
+    protected override void OnInitialized()
+    {
+        _timer = new Timer(_ => _ = InvokeAsync(TickAsync), null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private async Task TickAsync()
+    {
+        StateHasChanged();
+        if (!_expiredFired && Remaining <= TimeSpan.Zero)
+        {
+            _expiredFired = true;
+            await OnExpired.InvokeAsync();
+        }
+    }
+
+    public void Dispose() => _timer?.Dispose();
+}

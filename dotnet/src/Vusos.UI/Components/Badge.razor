@@ -1,0 +1,9 @@
+<span class="badge badge-@Tone @Class" title="@Title">@ChildContent</span>
+
+@code {
+    /// <summary>neutral | brand | ok | warn | danger | info</summary>
+    [Parameter] public string Tone { get; set; } = "neutral";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

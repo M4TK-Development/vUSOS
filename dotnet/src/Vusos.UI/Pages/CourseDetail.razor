@@ -1,0 +1,325 @@
+@page "/kursy/{Id}"
+@implements IDisposable
+@inject IConnectionManager Connections
+@inject IMaterialService Materials
+@inject IExternalOpener Opener
+@inject IConnectivity Connectivity
+@inject ToastService Toasts
+
+<PageTitle>@(_course?.FullName ?? "Kurs") – vUSOS</PageTitle>
+<a href="/kursy" class="back-link"><Icon Name="arrow-left" Size="16" /> Wszystkie kursy</a>
+<PageHeader Title="@(_course?.FullName ?? "Kurs")" Subtitle="@_course?.ShortName">
+    <Actions>
+        <button type="button" class="btn" @onclick="DownloadCourseAsync" disabled="@_bulkBusy"><Icon Name="download" Size="16" /> Pobierz cały kurs</button>
+        @if (!string.IsNullOrEmpty(_course?.Url)) { <ExternalLink Url="@_course!.Url" Class="btn"><Icon Name="external" Size="16" /> Platon</ExternalLink> }
+    </Actions>
+</PageHeader>
+
+<Tabs Items="TabItems" @bind-Active="_tab" Label="Zawartość kursu" />
+
+@if (_tab == "materialy")
+{
+    <AsyncView T="ContentData" Source="SourceSystem.Platon" Key="@Id" Load="LoadContentAsync" IsEmpty="d => d.Sections.Count == 0" Context="d">
+        <Placeholder><Skeleton Rows="6" /></Placeholder>
+        <EmptyContent><div class="card"><EmptyState Title="Brak materiałów w kursie" IconName="folder" /></div></EmptyContent>
+        <ChildContent>
+            <div class="accordion">
+                @{ var index = 0; }
+                @foreach (var s in d.Sections)
+                {
+                    <details class="card flush section" open="@(index++ == 0)">
+                        <summary>
+                            <span class="section-name">@(string.IsNullOrWhiteSpace(s.Name) ? "Sekcja" : s.Name)</span>
+                            <span class="muted small">@s.Modules.Count</span>
+                            <Icon Name="chevron-down" Size="16" Class="chev" />
+                        </summary>
+                        <div class="section-body">
+                            <SafeHtml Html="@s.SummaryHtml" Class="muted small" />
+                            @if (s.Modules.Count == 0)
+                            {
+                                <p class="muted small">Pusta sekcja.</p>
+                            }
+                            else
+                            {
+                                <ul class="modules">
+                                    @foreach (var m in s.Modules) { @ModuleRow(m, d) }
+                                </ul>
+                            }
+                        </div>
+                    </details>
+                }
+            </div>
+        </ChildContent>
+    </AsyncView>
+}
+else
+{
+    <AsyncView T="IReadOnlyList<LmsAssignment>" Source="SourceSystem.Platon" Key="@Id" Load="LoadAssignmentsAsync" IsEmpty="a => a.Count == 0" Context="all">
+        <Placeholder><Skeleton Rows="4" /></Placeholder>
+        <EmptyContent><div class="card"><EmptyState Title="Brak zadań w tym kursie" IconName="assign" /></div></EmptyContent>
+        <ChildContent>
+            <div class="card flush">
+                <ul class="list">
+                    @foreach (var a in all.OrderBy(a => a.DueDate ?? DateTimeOffset.MaxValue))
+                    {
+                        <li class="list-row column">
+                            <p class="item-title"><ExternalLink Url="@a.Url">@a.Name</ExternalLink></p>
+                            <div class="item-meta">@AssignmentBadges(a)</div>
+                        </li>
+                    }
+                </ul>
+            </div>
+        </ChildContent>
+    </AsyncView>
+}
+
+@code {
+    [Parameter] public string Id { get; set; } = "";
+
+    private sealed record ContentData(IReadOnlyList<LmsSection> Sections, IReadOnlyList<LmsAssignment> Assignments);
+
+    private static readonly IReadOnlyList<Tabs.TabItem> TabItems = [new("materialy", "Materiały"), new("zadania", "Zadania")];
+
+    private string _tab = "materialy";
+    private LmsCourse? _course;
+    private string? _courseLoadedFor;
+    private bool _bulkBusy;
+
+    // rekordy pobrań: po RemoteUrl oraz (moduł, nazwa pliku)
+    private List<MaterialRecord> _records = [];
+    private readonly Dictionary<string, DownloadProgress> _progress = [];
+    private readonly HashSet<string> _enqueuing = [];
+    private IDisposable? _subscription;
+
+    protected override void OnInitialized()
+    {
+        _subscription = Materials.Progress.Subscribe(new ActionObserver<DownloadProgress>(p => _ = InvokeAsync(() => OnProgressAsync(p))));
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_courseLoadedFor == Id) return;
+        _courseLoadedFor = Id;
+        _course = null;
+        try
+        {
+            var platon = await Connections.GetPlatonAsync();
+            _course = (await platon.GetCoursesAsync()).FirstOrDefault(c => c.Id == Id);
+        }
+        catch (Exception) { /* nagłówek działa też bez nazwy kursu; błąd pokaże lista materiałów */ }
+    }
+
+    private async Task<ContentData> LoadContentAsync(CancellationToken ct)
+    {
+        var platon = await Connections.GetPlatonAsync(ct);
+        var sections = await platon.GetCourseContentsAsync(Id, ct);
+        IReadOnlyList<LmsAssignment> assignments = [];
+        try { assignments = (await platon.GetAssignmentsAsync(ct)).Where(a => a.CourseId == Id).ToList(); }
+        catch (Exception e) when (e is not OperationCanceledException) { }
+        await RefreshRecordsAsync(ct);
+        return new ContentData(sections, assignments);
+    }
+
+    private async Task<IReadOnlyList<LmsAssignment>> LoadAssignmentsAsync(CancellationToken ct)
+        => (await (await Connections.GetPlatonAsync(ct)).GetAssignmentsAsync(ct)).Where(a => a.CourseId == Id).ToList();
+
+    private async Task RefreshRecordsAsync(CancellationToken ct = default)
+    {
+        try { _records = (await Materials.ListAsync(Id, ct)).ToList(); }
+        catch (Exception e) when (e is not OperationCanceledException) { }
+    }
+
+    private async Task OnProgressAsync(DownloadProgress p)
+    {
+        _progress[p.MaterialId] = p;
+        if (p.State is DownloadState.Done or DownloadState.Failed)
+        {
+            await RefreshRecordsAsync();
+            if (p.State == DownloadState.Done) _progress.Remove(p.MaterialId);
+        }
+        StateHasChanged();
+    }
+
+    private MaterialRecord? RecordFor(LmsModule m, LmsFile f)
+        => _records.FirstOrDefault(r => r.RemoteUrl == f.Url)
+           ?? _records.FirstOrDefault(r => r.ModuleId == m.Id && r.FileName == f.Name);
+
+    private int? Percent(MaterialRecord r)
+        => _progress.TryGetValue(r.Id, out var p) && p.TotalBytes is > 0 ? (int)(p.BytesReceived * 100 / p.TotalBytes.Value) : null;
+
+    private async Task OpenFileAsync(LmsModule m, LmsFile f)
+    {
+        try
+        {
+            var record = RecordFor(m, f);
+            if (record is { State: DownloadState.Done, LocalPath: { Length: > 0 } path})
+            {
+                await Opener.OpenFileAsync(path);
+                return;
+            }
+            var url = f.Url;
+            try
+            {
+                var platon = await Connections.GetPlatonAsync();
+                url = (await platon.GetFileDownloadAsync(f.Url)).Url.ToString();
+            }
+            catch (Exception e) when (e is not OperationCanceledException) { /* offline / awaria: spróbuj surowego adresu */ }
+            await Opener.OpenUrlAsync(url);
+        }
+        catch (Exception e) { Toasts.Error("Nie udało się otworzyć pliku: " + e.Message); }
+    }
+
+    private async Task DownloadAsync(LmsModule m, LmsFile f)
+    {
+        var key = m.Id + "|" + f.Url;
+        if (!_enqueuing.Add(key)) return;
+        try
+        {
+            var record = await Materials.EnqueueAsync(Id, m, f);
+            _records.RemoveAll(r => r.Id == record.Id);
+            _records.Add(record);
+            Background.Run(() => Materials.ProcessQueueAsync(), Toasts);
+        }
+        catch (Exception e) { Toasts.Error("Nie udało się dodać do pobierania: " + e.Message); }
+        finally { _enqueuing.Remove(key); }
+    }
+
+    private async Task RemoveAsync(MaterialRecord r)
+    {
+        try
+        {
+            await Materials.RemoveAsync(r.Id);
+            await RefreshRecordsAsync();
+            Toasts.Show("Usunięto plik z urządzenia.");
+        }
+        catch (Exception e) { Toasts.Error(e.Message); }
+    }
+
+    private async Task DownloadCourseAsync()
+    {
+        _bulkBusy = true;
+        try
+        {
+            var count = await Materials.EnqueueCourseAsync(Id);
+            Toasts.Success(count == 0
+                ? "Wszystkie pliki z tego kursu są już pobrane."
+                : $"Dodano do pobrania: {count} {Fmt.Plural(count, "plik", "pliki", "plików")}.");
+            await RefreshRecordsAsync();
+            if (count > 0) Background.Run(() => Materials.ProcessQueueAsync(), Toasts);
+        }
+        catch (Exception e) { Toasts.Error("Nie udało się rozpocząć pobierania: " + e.Message); }
+        _bulkBusy = false;
+    }
+
+    private static string ModuleIcon(LmsModuleType t) => t switch
+    {
+        LmsModuleType.Resource => "file",
+        LmsModuleType.Folder => "folder",
+        LmsModuleType.Url => "link",
+        LmsModuleType.Page => "file-text",
+        LmsModuleType.Book => "book-open",
+        LmsModuleType.Assign => "assign",
+        LmsModuleType.Quiz => "quiz",
+        LmsModuleType.Forum => "message",
+        LmsModuleType.Label => "text",
+        LmsModuleType.Lesson => "lesson",
+        _ => "file",
+    };
+
+    private RenderFragment AssignmentBadges(LmsAssignment a) => __builder =>
+    {
+        var overdue = !a.Submitted && a.DueDate is { } due && due < DateTimeOffset.UtcNow;
+        if (a.DueDate is { } d)
+        {
+            <Badge Tone="@(overdue ? "danger" : "neutral")">termin: @Fmt.DateTime(d)</Badge>
+        }
+        <Badge Tone="@(a.Submitted ? "ok" : "warn")">@(a.Submitted ? "oddane" : "nie oddane")</Badge>
+        if (a.Graded)
+        {
+            <Badge Tone="brand">ocena: @(a.Grade ?? "—")</Badge>
+        }
+    };
+
+    private RenderFragment ModuleRow(LmsModule m, ContentData d) => __builder =>
+    {
+        if (m.Type == LmsModuleType.Label)
+        {
+            if (!string.IsNullOrWhiteSpace(m.DescriptionHtml))
+            {
+                <li class="module module-label"><SafeHtml Html="@m.DescriptionHtml" Class="muted" /></li>
+            }
+            return;
+        }
+        var assignment = m.Type == LmsModuleType.Assign ? d.Assignments.FirstOrDefault(a => a.Id == (m.InstanceId ?? m.Id) || a.Id == m.Id || a.Name == m.Name) : null;
+        <li class="module">
+            <span class="module-icon type-@m.Type.ToString().ToLowerInvariant()"><Icon Name="@ModuleIcon(m.Type)" Size="20" /></span>
+            <div class="module-body">
+                <div class="module-head">
+                    <span class="item-title">@m.Name</span>
+                    @if (m.Completed == true) { <Icon Name="check-circle" Size="16" Class="text-ok" /><span class="sr-only">ukończone</span> }
+                    @if (!m.Visible) { <Badge>ukryte</Badge> }
+                </div>
+                @if (assignment is not null) { <div class="item-meta">@AssignmentBadges(assignment)</div> }
+                <SafeHtml Html="@m.DescriptionHtml" Class="muted small" />
+                @if (m.Files.Count > 0)
+                {
+                    <ul class="files">
+                        @foreach (var f in m.Files)
+                        {
+                            var file = f;
+                            var record = RecordFor(m, file);
+                            var busy = record is { State: DownloadState.Queued or DownloadState.Downloading };
+                            var done = record is { State: DownloadState.Done };
+                            <li class="file-row">
+                                <Icon Name="file" Size="18" />
+                                <div class="grow">
+                                    <span class="file-name">@file.Name</span>
+                                    <span class="muted small">@Fmt.Bytes(file.Size ?? record?.Size)</span>
+                                    @if (done) { <Badge Tone="ok"><Icon Name="check" Size="12" /> offline</Badge> }
+                                    @if (record is { State: DownloadState.Failed }) { <Badge Tone="danger" Title="@record.Error">błąd pobierania</Badge> }
+                                    @if (busy)
+                                    {
+                                        var pc = Percent(record!);
+                                        <div class="progress thin" role="progressbar" aria-label="Postęp pobierania" aria-valuemin="0" aria-valuemax="100" aria-valuenow="@(pc ?? 0)">
+                                            <div class="progress-bar @(pc is null ? "indeterminate" : null)" style="width:@((pc ?? 100))%"></div>
+                                        </div>
+                                    }
+                                </div>
+                                <div class="file-actions">
+                                    <button type="button" class="btn btn-sm" @onclick="() => OpenFileAsync(m, file)"
+                                            disabled="@(!done && !Connectivity.IsOnline)" title="@(!done && !Connectivity.IsOnline ? "Brak sieci – pobierz plik, gdy będziesz online" : null)">
+                                        <Icon Name="external" Size="14" /> Otwórz
+                                    </button>
+                                    @if (done)
+                                    {
+                                        <button type="button" class="btn btn-sm btn-ghost" @onclick="() => RemoveAsync(record!)" aria-label="Usuń pobrany plik @file.Name"><Icon Name="trash" Size="14" /></button>
+                                    }
+                                    else if (busy)
+                                    {
+                                        <button type="button" class="btn btn-sm" disabled>@(Percent(record!) is { } p ? $"{p}%" : "W kolejce…")</button>
+                                    }
+                                    else
+                                    {
+                                        <button type="button" class="btn btn-sm" @onclick="() => DownloadAsync(m, file)" disabled="@(!Connectivity.IsOnline)">
+                                            <Icon Name="download" Size="14" /> Pobierz offline
+                                        </button>
+                                    }
+                                </div>
+                            </li>
+                        }
+                    </ul>
+                }
+                else if (m.Type == LmsModuleType.Quiz)
+                {
+                    <a class="btn btn-sm" href="/testy">Przejdź do testów</a>
+                }
+                else if (!string.IsNullOrEmpty(m.Url) && m.Type != LmsModuleType.Label)
+                {
+                    <p><ExternalLink Url="@m.Url" Class="btn btn-sm"><Icon Name="external" Size="14" /> Otwórz</ExternalLink></p>
+                }
+            </div>
+        </li>
+    };
+
+    public void Dispose() => _subscription?.Dispose();
+}

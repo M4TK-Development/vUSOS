@@ -1,0 +1,26 @@
+<section class="card @Class" aria-label="@Title">
+    @if (!string.IsNullOrEmpty(Title) || Actions is not null || Tag is not null)
+    {
+        <header class="card-head">
+            @if (!string.IsNullOrEmpty(Title))
+            {
+                <h2 class="card-title">
+                    @if (!string.IsNullOrEmpty(IconName)) { <Icon Name="@IconName" Size="16" /> }
+                    @Title
+                </h2>
+            }
+            @Tag
+            @if (Actions is not null) { <div class="card-actions">@Actions</div> }
+        </header>
+    }
+    @ChildContent
+</section>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? IconName { get; set; }
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public RenderFragment? Tag { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

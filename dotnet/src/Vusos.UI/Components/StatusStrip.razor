@@ -1,0 +1,68 @@
+@implements IDisposable
+@inject ISyncStatus Sync
+@inject IConnectivity Connectivity
+@inject TimeProvider Clock
+
+<div class="status-strip @(Offline ? "is-offline" : null)" role="status" aria-live="polite">
+    @if (Offline)
+    {
+        <span class="chip chip-warn"><Icon Name="cloud-off" Size="14" /> Tryb offline</span>
+    }
+    @foreach (var system in Systems)
+    {
+        var st = Sync.Get(system);
+        <span class="chip @ChipClass(st)" title="@Tooltip(st)">
+            <span class="dot" aria-hidden="true"></span>
+            <strong>@Fmt.SystemName(system)</strong>
+            @Describe(st)
+        </span>
+    }
+    @if (Pending > 0)
+    {
+        <span class="chip chip-info" title="Zmiany zapisane lokalnie, czekają na wysłanie do systemu">
+            <Icon Name="refresh" Size="14" /> @Pending @Fmt.Plural(Pending, "zmiana do synchronizacji", "zmiany do synchronizacji", "zmian do synchronizacji")
+        </span>
+    }
+</div>
+
+@code {
+    private static readonly SourceSystem[] Systems = [SourceSystem.Usos, SourceSystem.Platon];
+
+    private bool Offline => !Connectivity.IsOnline;
+    private int Pending => Systems.Sum(s => Sync.Get(s).PendingActions);
+
+    protected override void OnInitialized()
+    {
+        Sync.Changed += OnSync;
+        Connectivity.OnlineChanged += OnOnline;
+    }
+
+    private void OnSync(object? sender, SyncState state) => _ = InvokeAsync(StateHasChanged);
+    private void OnOnline(object? sender, bool online) => _ = InvokeAsync(StateHasChanged);
+
+    private string ChipClass(SyncState st)
+    {
+        if (st.LastError is not null && st.LastOrigin == DataOrigin.Cache) return "chip-warn";
+        if (st.LastOrigin == DataOrigin.Cache && (st.LastCacheAt ?? st.LastLiveAt) is not null) return "chip-warn";
+        if (st.LastLiveAt is not null) return "chip-ok";
+        return "chip-muted";
+    }
+
+    private string Describe(SyncState st)
+    {
+        if (st.LastOrigin == DataOrigin.Cache)
+        {
+            var at = st.LastCacheAt ?? st.LastLiveAt;
+            return at is { } t ? $"offline · dane z {Fmt.Time(t)}" : "offline";
+        }
+        return st.LastLiveAt is { } live ? $"na żywo · {Fmt.Time(live)}" : "brak danych";
+    }
+
+    private static string Tooltip(SyncState st) => st.LastError ?? "";
+
+    public void Dispose()
+    {
+        Sync.Changed -= OnSync;
+        Connectivity.OnlineChanged -= OnOnline;
+    }
+}

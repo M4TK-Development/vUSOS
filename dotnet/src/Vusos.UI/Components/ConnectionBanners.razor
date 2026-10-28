@@ -1,0 +1,50 @@
+@implements IDisposable
+@inject IConnectionManager Connections
+
+@foreach (var info in Problems)
+{
+    <div class="banner banner-@(info.Status == ConnectionStatus.Error ? "danger" : info.Status == ConnectionStatus.Expired ? "warn" : "info")" role="status">
+        <Icon Name="@(info.Status == ConnectionStatus.Disconnected ? "plug" : "alert")" Size="18" />
+        <span class="banner-text">
+            @switch (info.Status)
+            {
+                case ConnectionStatus.Disconnected:
+                    <text><strong>@Fmt.SystemName(info.System)</strong> nie jest połączony. Połącz, aby zobaczyć swoje dane.</text>
+                    break;
+                case ConnectionStatus.Expired:
+                    <text>Sesja w systemie <strong>@Fmt.SystemName(info.System)</strong> wygasła. Pokazuję zapisane dane.</text>
+                    break;
+                default:
+                    <text>Błąd połączenia z systemem <strong>@Fmt.SystemName(info.System)</strong>@(string.IsNullOrEmpty(info.Error) ? "" : ": " + info.Error)</text>
+                    break;
+            }
+        </span>
+        <a class="btn btn-sm" href="/ustawienia">@(info.Status == ConnectionStatus.Disconnected ? "Połącz" : "Połącz ponownie")</a>
+    </div>
+}
+
+@code {
+    private IReadOnlyDictionary<SourceSystem, ConnectionInfo> _status = new Dictionary<SourceSystem, ConnectionInfo>();
+
+    private IEnumerable<ConnectionInfo> Problems => _status.Values.Where(i => i.Status != ConnectionStatus.Connected).OrderBy(i => i.System);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Connections.Changed += OnChanged;
+        await RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        try { _status = await Connections.GetStatusAsync(); }
+        catch (Exception) { /* pasek połączeń nie może wywrócić strony */ }
+    }
+
+    private void OnChanged(object? sender, SourceSystem system) => _ = InvokeAsync(async () =>
+    {
+        await RefreshAsync();
+        StateHasChanged();
+    });
+
+    public void Dispose() => Connections.Changed -= OnChanged;
+}

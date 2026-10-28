@@ -1,0 +1,5 @@
+<Badge Tone="@(Source == SourceSystem.Usos ? "info" : "brand")" Title="@(Source == SourceSystem.Usos ? "Źródło: USOS" : "Źródło: Platon")">@Fmt.SystemName(Source)</Badge>
+
+@code {
+    [Parameter, EditorRequired] public SourceSystem Source { get; set; }
+}

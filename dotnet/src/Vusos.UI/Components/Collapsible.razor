@@ -1,0 +1,10 @@
+<details class="expander" open="@Open">
+    <summary><span>@Title</span><Icon Name="chevron-down" Size="16" Class="chev" /></summary>
+    <div class="expander-body">@ChildContent</div>
+</details>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = "";
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

@@ -1,0 +1,13 @@
+@using System.Reflection
+
+<Router AppAssembly="typeof(AppRouter).Assembly" AdditionalAssemblies="ExtraAssemblies" NotFoundPage="typeof(Pages.NotFound)">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" DefaultLayout="typeof(MainLayout)" />
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+</Router>
+
+@code {
+    /// <summary>Dodatkowe zestawy ze stronami hosta (np. strony deweloperskie w WebHost).</summary>
+    [Parameter] public IEnumerable<Assembly>? ExtraAssemblies { get; set; }
+}

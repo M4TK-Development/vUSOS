@@ -1,0 +1,122 @@
+@typeparam T
+@implements IDisposable
+@inject IConnectionManager Connections
+
+@if (_loading && !_hasValue)
+{
+    @if (Placeholder is not null) { @Placeholder } else { <Skeleton Rows="4" /> }
+}
+else
+{
+    @if (_error is not null)
+    {
+        <ErrorState Error="_error" Source="Source" HasCache="_hasValue" Compact="_hasValue" OnRetry="ReloadAsync" />
+    }
+    @if (_hasValue)
+    {
+        @if (Source is { } src && ShowCacheTag)
+        {
+            <div class="data-meta"><CacheTag Source="src" /></div>
+        }
+        @if (IsEmpty is not null && IsEmpty(_value!))
+        {
+            @if (EmptyContent is not null) { @EmptyContent } else { <div class="card"><EmptyState /></div> }
+        }
+        else
+        {
+            @ChildContent(_value!)
+        }
+    }
+}
+
+@code {
+    private T? _value;
+    private bool _hasValue;
+    private bool _loading;
+    private Exception? _error;
+    private object? _lastKey;
+    private bool _initialized;
+    private int _version;
+    private CancellationTokenSource? _cts;
+
+    /// <summary>Funkcja ładująca dane; wywoływana przy pierwszym renderze, zmianie <see cref="Key"/>, ponownym połączeniu i ręcznym odświeżeniu.</summary>
+    [Parameter, EditorRequired] public Func<CancellationToken, Task<T>> Load { get; set; } = default!;
+    [Parameter, EditorRequired] public RenderFragment<T> ChildContent { get; set; } = default!;
+    /// <summary>Zmiana klucza (np. tygodnia, semestru) wymusza ponowne załadowanie.</summary>
+    [Parameter] public object? Key { get; set; }
+    /// <summary>System, z którego pochodzą dane: etykieta „z cache”, ponowne ładowanie po zmianie połączenia, treść błędów.</summary>
+    [Parameter] public SourceSystem? Source { get; set; }
+    [Parameter] public bool ShowCacheTag { get; set; } = true;
+    [Parameter] public RenderFragment? Placeholder { get; set; }
+    [Parameter] public Func<T, bool>? IsEmpty { get; set; }
+    [Parameter] public RenderFragment? EmptyContent { get; set; }
+    [Parameter] public EventCallback<T> OnLoaded { get; set; }
+
+    public T? Value => _value;
+
+    protected override void OnInitialized() => Connections.Changed += OnConnectionChanged;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!_initialized || !Equals(Key, _lastKey))
+        {
+            _initialized = true;
+            _lastKey = Key;
+            await LoadCoreAsync(keepValue: false);
+        }
+    }
+
+    public Task ReloadAsync() => LoadCoreAsync(keepValue: true);
+
+    /// <summary>Zamienia załadowaną wartość bez zapytania do sieci (np. po lokalnej modyfikacji).</summary>
+    public void SetValue(T value)
+    {
+        _value = value;
+        _hasValue = true;
+        StateHasChanged();
+    }
+
+    private void OnConnectionChanged(object? sender, SourceSystem system)
+    {
+        if (Source is null || Source == system) _ = InvokeAsync(ReloadAsync);
+    }
+
+    private async Task LoadCoreAsync(bool keepValue)
+    {
+        _cts?.Cancel();
+        var cts = _cts = new CancellationTokenSource();
+        var version = ++_version;
+        _loading = true;
+        if (!keepValue) { _hasValue = false; _value = default; }
+        _error = null;
+        if (keepValue) StateHasChanged();
+        try
+        {
+            var result = await Load(cts.Token);
+            if (version != _version) return;
+            _value = result;
+            _hasValue = true;
+            _error = null;
+            _loading = false;
+            await OnLoaded.InvokeAsync(result);
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception e)
+        {
+            if (version != _version) return;
+            _error = e;
+            _loading = false;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        Connections.Changed -= OnConnectionChanged;
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

@@ -1,0 +1,24 @@
+<div class="tabs" role="tablist" aria-label="@Label">
+    @foreach (var item in Items)
+    {
+        var key = item.Key;
+        <button type="button" role="tab" class="tab @(key == Active ? "active" : null)" aria-selected="@(key == Active ? "true" : "false")"
+                @onclick="() => Select(key)">@item.Label</button>
+    }
+</div>
+
+@code {
+    public sealed record TabItem(string Key, string Label);
+
+    [Parameter, EditorRequired] public IReadOnlyList<TabItem> Items { get; set; } = [];
+    [Parameter] public string Active { get; set; } = "";
+    [Parameter] public EventCallback<string> ActiveChanged { get; set; }
+    [Parameter] public string? Label { get; set; }
+
+    private async Task Select(string key)
+    {
+        if (key == Active) return;
+        Active = key;
+        await ActiveChanged.InvokeAsync(key);
+    }
+}

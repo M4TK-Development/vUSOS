@@ -1,0 +1,86 @@
+@page "/ogloszenia"
+@implements IDisposable
+@inject IConnectionManager Connections
+
+<PageTitle>Ogłoszenia – vUSOS</PageTitle>
+<PageHeader Title="Ogłoszenia" />
+
+<Tabs Items="Filters" @bind-Active="_filter" Label="Filtr źródła" />
+
+@if (_loading && _items.Count == 0)
+{
+    <Skeleton Rows="4" Cards="true" />
+}
+else
+{
+    @foreach (var (system, error) in _errors)
+    {
+        <ErrorState Error="error" Source="system" Compact="true" OnRetry="LoadAsync" />
+    }
+    @if (Visible.Count == 0)
+    {
+        @if (_errors.Count < 2)
+        {
+            <div class="card"><EmptyState Title="Brak ogłoszeń" IconName="megaphone" /></div>
+        }
+    }
+    else
+    {
+        <div class="feed">
+            @foreach (var a in Visible)
+            {
+                <article class="card announcement">
+                    <div class="item-meta">
+                        <SourceBadge Source="a.Source" />
+                        @if (!string.IsNullOrEmpty(a.Category)) { <Badge>@a.Category</Badge> }
+                        <span class="muted small">@Fmt.Date(a.PublishedAt)@(string.IsNullOrEmpty(a.Author) ? "" : " · " + a.Author)</span>
+                        <CacheTag Source="a.Source" />
+                    </div>
+                    <h2 class="item-title">@a.Title</h2>
+                    <SafeHtml Html="@a.BodyHtml" />
+                    @if (!string.IsNullOrEmpty(a.Url)) { <p><ExternalLink Url="@a.Url" Class="link-sm">Otwórz w systemie <Icon Name="external" Size="14" /></ExternalLink></p> }
+                </article>
+            }
+        </div>
+    }
+}
+
+@code {
+    private static readonly IReadOnlyList<Tabs.TabItem> Filters =
+        [new("all", "Wszystkie"), new("usos", "USOS"), new("platon", "Platon")];
+
+    private string _filter = "all";
+    private bool _loading = true;
+    private List<Announcement> _items = [];
+    private readonly List<(SourceSystem, Exception)> _errors = [];
+
+    private IReadOnlyList<Announcement> Visible => _items
+        .Where(a => _filter == "all" || (_filter == "usos") == (a.Source == SourceSystem.Usos))
+        .OrderByDescending(a => a.PublishedAt).ToList();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Connections.Changed += OnConnectionChanged;
+        await LoadAsync();
+    }
+
+    private void OnConnectionChanged(object? sender, SourceSystem s) => _ = InvokeAsync(async () => { await LoadAsync(); StateHasChanged(); });
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var usosTask = Background.TryAsync(async () => await (await Connections.GetUsosAsync()).GetAnnouncementsAsync(50));
+        var platonTask = Background.TryAsync(async () => await (await Connections.GetPlatonAsync()).GetAnnouncementsAsync(50));
+        var usos = await usosTask;
+        var platon = await platonTask;
+
+        _errors.Clear();
+        var items = new List<Announcement>();
+        if (usos.Error is not null) _errors.Add((SourceSystem.Usos, usos.Error)); else items.AddRange(usos.Value!);
+        if (platon.Error is not null) _errors.Add((SourceSystem.Platon, platon.Error)); else items.AddRange(platon.Value!);
+        _items = items;
+        _loading = false;
+    }
+
+    public void Dispose() => Connections.Changed -= OnConnectionChanged;
+}

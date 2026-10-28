@@ -1,0 +1,47 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject NavigationManager Nav
+
+<AuthGate>
+    <div class="app-shell">
+        <a class="skip-link" href="#main">Przejdź do treści</a>
+        <NavMenu />
+        <div class="app-main">
+            <StatusStrip />
+            <ConnectionBanners />
+            <main id="main" class="content" tabindex="-1">
+                <ErrorBoundary @ref="_boundary">
+                    <ChildContent>@Body</ChildContent>
+                    <ErrorContent Context="ex">
+                        <div class="notice notice-danger" role="alert">
+                            <Icon Name="alert" Size="20" />
+                            <div class="notice-text">
+                                <p class="notice-title">Ta strona napotkała błąd</p>
+                                <p class="muted">@ex.Message</p>
+                            </div>
+                            <button type="button" class="btn btn-sm" @onclick="() => _boundary?.Recover()">Spróbuj ponownie</button>
+                        </div>
+                    </ErrorContent>
+                </ErrorBoundary>
+            </main>
+        </div>
+    </div>
+    <LinkInterceptor />
+    <Toasts />
+</AuthGate>
+
+<div id="blazor-error-ui" data-nosnippet>
+    Wystąpił nieoczekiwany błąd.
+    <a href="." class="reload">Odśwież</a>
+    <span class="dismiss" role="button" aria-label="Zamknij">&#x2715;</span>
+</div>
+
+@code {
+    private ErrorBoundary? _boundary;
+
+    protected override void OnInitialized() => Nav.LocationChanged += OnLocation;
+
+    private void OnLocation(object? sender, LocationChangedEventArgs e) => _boundary?.Recover();
+
+    public void Dispose() => Nav.LocationChanged -= OnLocation;
+}

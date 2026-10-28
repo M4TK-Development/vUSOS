@@ -1,0 +1,17 @@
+@inject ISyncStatus Sync
+@if (IsCache)
+{
+    <span class="cache-tag" title="Dane pochodzą z lokalnej pamięci podręcznej">
+        <Icon Name="cloud-off" Size="12" /> z cache@(At is { } t ? ", " + Fmt.Time(t) : "")
+    </span>
+}
+
+@code {
+    [Parameter, EditorRequired] public SourceSystem Source { get; set; }
+    /// <summary>Gdy podane (np. z DashboardData.Origins), ma pierwszeństwo przed ISyncStatus.</summary>
+    [Parameter] public DataOrigin? Origin { get; set; }
+
+    private SyncState State => Sync.Get(Source);
+    private bool IsCache => (Origin ?? State.LastOrigin) == DataOrigin.Cache;
+    private DateTimeOffset? At => State.LastCacheAt ?? State.LastLiveAt;
+}

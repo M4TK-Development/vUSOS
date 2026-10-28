@@ -1,0 +1,30 @@
+@implements IAsyncDisposable
+@inject IJSRuntime Js
+@inject IExternalOpener Opener
+
+@code {
+    private DotNetObjectReference<LinkInterceptor>? _ref;
+
+    /// <summary>Linki wewnątrz sanityzowanego HTML-a (target=_blank) otwieramy przez IExternalOpener, żeby działały tak samo w MAUI i w przeglądarce.</summary>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _ref = DotNetObjectReference.Create(this);
+        try { await Js.InvokeVoidAsync("vusos.registerLinkHandler", _ref); }
+        catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException) { }
+    }
+
+    [JSInvokable]
+    public async Task OpenExternal(string url)
+    {
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" or "mailto" or "tel")
+            await Opener.OpenUrlAsync(url);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try { await Js.InvokeVoidAsync("vusos.registerLinkHandler", (object?)null); }
+        catch (Exception e) when (e is JSException or JSDisconnectedException or InvalidOperationException) { }
+        _ref?.Dispose();
+    }
+}

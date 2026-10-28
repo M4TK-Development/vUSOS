@@ -1,0 +1,17 @@
+@inject IExternalOpener Opener
+@inject ToastService Toasts
+
+<a href="@Url" class="@Class" target="_blank" rel="noopener noreferrer" @onclick="OpenAsync" @onclick:preventDefault title="@Title">@ChildContent</a>
+
+@code {
+    [Parameter, EditorRequired] public string Url { get; set; } = "";
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private async Task OpenAsync()
+    {
+        try { await Opener.OpenUrlAsync(Url); }
+        catch (Exception e) { Toasts.Error("Nie udało się otworzyć adresu: " + e.Message); }
+    }
+}

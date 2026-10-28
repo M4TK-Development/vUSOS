@@ -1,0 +1,10 @@
+{
+  "messages": [
+    { "id": 5501, "subject": "Potwierdzenie złożenia wniosku", "sender": { "first_name": "Dziekanat", "last_name": "Informatyki" },
+      "recipients": [{ "first_name": "Anna", "last_name": "Nowak" }], "date": "2025-10-21 13:05:00", "is_read": false,
+      "body": "<p>Twój wniosek został zarejestrowany.</p>",
+      "attachments": [{ "name": "potwierdzenie.pdf", "url": "https://usosapps.vistula.example/att/1", "size": "20480" }] },
+    { "id": 5490, "subject": "Harmonogram sesji", "sender": "Biuro ds. Studenckich", "recipients": ["Anna Nowak"],
+      "date": "2025-10-15 08:40:00", "is_read": true, "preview": "Sesja zimowa rozpocznie się..." }
+  ]
+}

@@ -1,0 +1,22 @@
+<div class="connect-prompt @(Compact ? "compact" : null)">
+    <Icon Name="plug" Size="@(Compact ? 18 : 28)" />
+    <div class="connect-prompt-text">
+        @if (Expired)
+        {
+            <p class="empty-title">Sesja w systemie @Fmt.SystemName(Source) wygasła</p>
+            <p class="muted">Połącz ponownie, aby odświeżyć dane. Dane zapisane wcześniej nadal są dostępne offline.</p>
+        }
+        else
+        {
+            <p class="empty-title">Połącz z systemem @Fmt.SystemName(Source)</p>
+            <p class="muted">Ta sekcja korzysta z danych @Fmt.SystemName(Source). Połączenie zajmuje jedno kliknięcie.</p>
+        }
+    </div>
+    <a class="btn btn-primary" href="/ustawienia">@(Expired ? "Połącz ponownie" : "Połącz")</a>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public SourceSystem Source { get; set; }
+    [Parameter] public bool Expired { get; set; }
+    [Parameter] public bool Compact { get; set; }
+}

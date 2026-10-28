@@ -1,0 +1,30 @@
+@if (!string.IsNullOrWhiteSpace(Html))
+{
+    <div class="safe-html @Class" id="@Id">@((MarkupString)Clean)</div>
+}
+
+@code {
+    [Parameter] public string? Html { get; set; }
+    [Parameter] public SanitizeProfile Profile { get; set; } = SanitizeProfile.Content;
+    [Parameter] public string? Class { get; set; }
+    [Parameter] public string? Id { get; set; }
+
+    private string _clean = "";
+    private string? _cleanFor;
+    private SanitizeProfile _cleanProfile;
+
+    // sanityzacja tylko gdy zmieni się wejście (komponent bywa renderowany często)
+    private string Clean
+    {
+        get
+        {
+            if (_cleanFor != Html || _cleanProfile != Profile)
+            {
+                _clean = HtmlSanitizer.Sanitize(Html, Profile);
+                _cleanFor = Html;
+                _cleanProfile = Profile;
+            }
+            return _clean;
+        }
+    }
+}

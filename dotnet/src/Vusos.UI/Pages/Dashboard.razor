@@ -1,0 +1,194 @@
+@page "/"
+@inject IDashboardService DashboardSvc
+@inject TimeProvider Clock
+
+<PageTitle>Dziś – vUSOS</PageTitle>
+<PageHeader Title="Dziś" Subtitle="@Fmt.DayLong(Fmt.Today(Clock))" />
+
+<AsyncView T="DashboardData" Load="ct => DashboardSvc.GetAsync(ct)" ShowCacheTag="false" Context="d">
+    <Placeholder><Skeleton Rows="5" Cards="true" /></Placeholder>
+    <ChildContent>
+        @{
+            var now = Clock.GetUtcNow();
+            var today = Fmt.Today(Clock);
+            var deadlines = d.UpcomingDeadlines
+                .Where(e => e.Start >= now.AddHours(-1) && e.Start <= now.AddDays(7))
+                .OrderBy(e => e.Start).ToList();
+            var grades = d.RecentGrades.OrderByDescending(g => g.DateModified ?? DateTimeOffset.MinValue).Take(5).ToList();
+            var classes = d.TodayClasses.OrderBy(c => c.Start).ToList();
+            var payments = d.PaymentsDue.OrderBy(p => p.DueDate ?? DateOnly.MaxValue).ToList();
+            var announcements = d.Announcements.OrderByDescending(a => a.PublishedAt).Take(5).ToList();
+            var due = payments.Sum(p => p.Outstanding);
+            var overdueCount = payments.Count(p => p.State == PaymentState.Overdue);
+        }
+        @if (d.Profile is { } profile)
+        {
+            <p class="lead">Cześć, @profile.FirstName!</p>
+        }
+        <div class="dash-grid">
+            <div class="dash-main">
+                <Card Title="Dzisiejsze zajęcia" IconName="calendar">
+                    <Tag><CacheTag Source="SourceSystem.Usos" Origin="OriginOf(d, SourceSystem.Usos)" /></Tag>
+                    <ChildContent>
+                        @if (classes.Count == 0)
+                        {
+                            <EmptyState Title="Dziś bez zajęć" Hint="Miłego dnia!" />
+                        }
+                        else
+                        {
+                            <ol class="timeline">
+                                @foreach (var c in classes)
+                                {
+                                    var live = c.Start <= now && now < c.End;
+                                    var past = c.End <= now;
+                                    <li class="timeline-item @(live ? "live" : null) @(past ? "past" : null)">
+                                        <span class="timeline-dot" aria-hidden="true"></span>
+                                        <div class="timeline-time"><span class="mono">@Fmt.Time(c.Start)–@Fmt.Time(c.End)</span>
+                                            @if (live) { <Badge Tone="ok">teraz</Badge> }
+                                        </div>
+                                        <div class="timeline-body">
+                                            <p class="item-title">@c.CourseName.Pl</p>
+                                            <p class="item-meta">
+                                                @if (!string.IsNullOrEmpty(c.ClassType)) { <Badge Tone="@Fmt.ClassTypeTone(c.ClassType)">@Fmt.ClassTypeLabel(c.ClassType)</Badge> }
+                                                @if (!string.IsNullOrEmpty(c.Room)) { <span>sala @c.Room@(string.IsNullOrEmpty(c.Building) ? "" : $", {c.Building}")</span> }
+                                                @if (c.Lecturers.Count > 0) { <span class="muted">@Fmt.Lecturers(c.Lecturers)</span> }
+                                            </p>
+                                        </div>
+                                    </li>
+                                }
+                            </ol>
+                        }
+                    </ChildContent>
+                </Card>
+
+                <Card Title="Terminy w ciągu 7 dni" IconName="clock">
+                    <Tag><CacheTag Source="SourceSystem.Platon" Origin="OriginOf(d, SourceSystem.Platon)" /></Tag>
+                    <ChildContent>
+                        @if (deadlines.Count == 0)
+                        {
+                            <EmptyState Title="Brak terminów" Hint="Żadne zadanie ani test nie kończy się w tym tygodniu." />
+                        }
+                        else
+                        {
+                            <ul class="list">
+                                @foreach (var e in deadlines)
+                                {
+                                    <li class="list-row">
+                                        <div class="grow">
+                                            <p class="item-title">
+                                                @if (!string.IsNullOrEmpty(e.Url)) { <ExternalLink Url="@e.Url">@e.Name</ExternalLink> } else { @e.Name }
+                                            </p>
+                                            <p class="item-meta"><span class="muted">@e.CourseName</span></p>
+                                        </div>
+                                        <div class="right">
+                                            <Badge Tone="@(e.Start - now < TimeSpan.FromHours(48) ? "warn" : "neutral")">@Fmt.Relative(e.Start, now)</Badge>
+                                            <p class="muted small">@Fmt.DateTime(e.Start)</p>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </Card>
+
+                <Card Title="Ostatnie oceny" IconName="grades">
+                    <Tag><CacheTag Source="SourceSystem.Usos" Origin="OriginOf(d, SourceSystem.Usos)" /></Tag>
+                    <Actions><a href="/oceny" class="link-sm">Wszystkie</a></Actions>
+                    <ChildContent>
+                        @if (grades.Count == 0)
+                        {
+                            <EmptyState Title="Brak ocen" />
+                        }
+                        else
+                        {
+                            <ul class="list">
+                                @foreach (var g in grades)
+                                {
+                                    <li class="list-row">
+                                        <div class="grow">
+                                            <p class="item-title">@g.CourseName.Pl</p>
+                                            <p class="item-meta muted">@Fmt.ClassTypeLabel(g.ClassType)@(g.DateModified is { } dm ? " · " + Fmt.Date(dm) : "")</p>
+                                        </div>
+                                        <Badge Tone="@GradeMath.Tone(g)" Class="grade-badge">@g.ValueSymbol</Badge>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </Card>
+            </div>
+
+            <div class="dash-side">
+                <Card Title="Płatności" IconName="wallet" Class="@(overdueCount > 0 ? "card-danger" : null)">
+                    <Tag><CacheTag Source="SourceSystem.Usos" Origin="OriginOf(d, SourceSystem.Usos)" /></Tag>
+                    <Actions><a href="/platnosci" class="link-sm">Szczegóły</a></Actions>
+                    <ChildContent>
+                        @if (payments.Count == 0)
+                        {
+                            <EmptyState Title="Brak zaległości" Hint="Wszystkie opłaty uregulowane." />
+                        }
+                        else
+                        {
+                            <p class="big-number @(overdueCount > 0 ? "text-danger" : null)">@Fmt.Money(due, payments[0].Currency)</p>
+                            <p class="muted small">@payments.Count @Fmt.Plural(payments.Count, "opłata", "opłaty", "opłat") do uregulowania@(overdueCount > 0 ? $", w tym {overdueCount} po terminie" : "")</p>
+                            <ul class="list">
+                                @foreach (var p in payments)
+                                {
+                                    <li class="list-row @(p.State == PaymentState.Overdue ? "row-danger" : null)">
+                                        <div class="grow">
+                                            <p class="item-title">@p.Description.Pl</p>
+                                            <p class="item-meta muted">termin: @Fmt.Date(p.DueDate)</p>
+                                        </div>
+                                        <div class="right">
+                                            <strong class="nowrap">@Fmt.Money(p.Outstanding, p.Currency)</strong>
+                                            <div><PaymentStateBadge State="p.State" /></div>
+                                        </div>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </Card>
+
+                <Card Title="Wiadomości" IconName="mail">
+                    <Tag><CacheTag Source="SourceSystem.Usos" Origin="OriginOf(d, SourceSystem.Usos)" /></Tag>
+                    <ChildContent>
+                        <a href="/wiadomosci" class="unread-link">
+                            <span class="big-number">@d.UnreadMessages</span>
+                            <span>@(d.UnreadMessages == 0 ? "brak nowych wiadomości" : Fmt.Plural(d.UnreadMessages, "nieprzeczytana wiadomość", "nieprzeczytane wiadomości", "nieprzeczytanych wiadomości"))</span>
+                        </a>
+                    </ChildContent>
+                </Card>
+
+                <Card Title="Ogłoszenia" IconName="megaphone">
+                    <Actions><a href="/ogloszenia" class="link-sm">Wszystkie</a></Actions>
+                    <ChildContent>
+                        @if (announcements.Count == 0)
+                        {
+                            <EmptyState Title="Brak ogłoszeń" />
+                        }
+                        else
+                        {
+                            <ul class="list">
+                                @foreach (var a in announcements)
+                                {
+                                    <li class="list-row column">
+                                        <p class="item-meta"><SourceBadge Source="a.Source" /> <span class="muted">@Fmt.Date(a.PublishedAt)</span>
+                                            <CacheTag Source="a.Source" Origin="OriginOf(d, a.Source)" /></p>
+                                        <p class="item-title">@a.Title</p>
+                                        <p class="muted small clamp-2">@Fmt.StripHtml(a.BodyHtml, 140)</p>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </ChildContent>
+                </Card>
+            </div>
+        </div>
+    </ChildContent>
+</AsyncView>
+
+@code {
+    private static DataOrigin OriginOf(DashboardData d, SourceSystem s)
+        => d.Origins.TryGetValue(s, out var o) ? o : DataOrigin.Live;
+}

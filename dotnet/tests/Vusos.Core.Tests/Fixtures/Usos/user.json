@@ -1,0 +1,20 @@
+{
+  "id": "1234567",
+  "first_name": "Anna",
+  "last_name": "Nowak",
+  "email": "anna.nowak@stu.vistula.example",
+  "student_number": "61234",
+  "photo_urls": { "200x200": "https://usosapps.vistula.example/photos/1234567_200.jpg" },
+  "student_programmes": [
+    {
+      "id": 98765,
+      "programme": {
+        "id": "INF-I-S",
+        "description": { "pl": "Informatyka", "en": "Computer Science" },
+        "level_of_studies": { "pl": "Studia I stopnia", "en": "Bachelor's" },
+        "mode_of_studies": { "pl": "stacjonarne", "en": "full-time" }
+      },
+      "status": "active"
+    }
+  ]
+}

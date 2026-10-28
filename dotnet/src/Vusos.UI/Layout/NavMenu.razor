@@ -1,0 +1,92 @@
+@implements IDisposable
+@inject NavigationManager Nav
+@inject IAuthSession Auth
+
+<nav class="nav" aria-label="Główna nawigacja">
+    <a class="nav-brand" href="/" aria-label="vUSOS – strona główna">
+        <span class="brand-mark" aria-hidden="true">v</span>
+        <span class="brand-text">vUSOS</span>
+    </a>
+    <ul class="nav-list">
+        @foreach (var item in Items)
+        {
+            <li class="@(item.Primary ? null : "nav-secondary")">
+                <NavLink class="nav-link" href="@item.Href" Match="@(item.Href == "/" ? NavLinkMatch.All : NavLinkMatch.Prefix)">
+                    <Icon Name="@item.Icon" Size="22" />
+                    <span class="nav-label">@item.Label</span>
+                </NavLink>
+            </li>
+        }
+        <li class="nav-more">
+            <button type="button" class="nav-link @(MoreActive ? "active" : null)" @onclick="() => _more = true" aria-haspopup="dialog">
+                <Icon Name="more" Size="22" />
+                <span class="nav-label">Więcej</span>
+            </button>
+        </li>
+    </ul>
+    <div class="nav-user">
+        <Icon Name="user" Size="16" />
+        <span class="nav-user-text">
+            <span>@(Auth.DisplayName ?? "Student")</span>
+            <small class="muted">@Auth.Email</small>
+        </span>
+    </div>
+</nav>
+
+<Sheet Open="_more" OnClose="CloseMore" Title="Więcej">
+    <ul class="more-list">
+        @foreach (var item in Items.Where(i => !i.Primary))
+        {
+            <li>
+                <a class="more-link" href="@item.Href" @onclick="CloseMore">
+                    <Icon Name="@item.Icon" Size="22" /> @item.Label
+                </a>
+            </li>
+        }
+    </ul>
+</Sheet>
+
+@code {
+    private sealed record NavItem(string Href, string Label, string Icon, bool Primary);
+
+    // kolejność jak w menu bocznym; Primary = widoczne w dolnym pasku na telefonie
+    private static readonly NavItem[] Items =
+    [
+        new("/", "Dziś", "home", true),
+        new("/plan", "Plan", "calendar", true),
+        new("/oceny", "Oceny", "grades", true),
+        new("/platnosci", "Płatności", "wallet", false),
+        new("/wiadomosci", "Wiadomości", "mail", true),
+        new("/kursy", "Kursy", "book", true),
+        new("/testy", "Testy", "quiz", false),
+        new("/ogloszenia", "Ogłoszenia", "megaphone", false),
+        new("/ustawienia", "Ustawienia", "settings", false),
+    ];
+
+    private bool _more;
+
+    private bool MoreActive
+    {
+        get
+        {
+            var path = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?', '#')[0].TrimStart('/');
+            return Items.Where(i => !i.Primary).Any(i => path == i.Href || path.StartsWith(i.Href + "/", StringComparison.Ordinal));
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Nav.LocationChanged += OnLocation;
+        Auth.Changed += OnAuth;
+    }
+
+    private void OnLocation(object? sender, LocationChangedEventArgs e) { _more = false; _ = InvokeAsync(StateHasChanged); }
+    private void OnAuth() => _ = InvokeAsync(StateHasChanged);
+    private void CloseMore() => _more = false;
+
+    public void Dispose()
+    {
+        Nav.LocationChanged -= OnLocation;
+        Auth.Changed -= OnAuth;
+    }
+}

@@ -1,0 +1,57 @@
+@if (Error is null)
+{
+}
+else if (Error is NotConnectedException nc)
+{
+    <ConnectPrompt Source="nc.System" Compact="Compact" />
+}
+else if (Error is AdapterAuthException)
+{
+    <div class="notice notice-warn" role="alert">
+        <Icon Name="plug" Size="20" />
+        <div class="notice-text">
+            <p class="notice-title">Sesja wygasła@(Source is { } s ? $" ({Fmt.SystemName(s)})" : "")</p>
+            <p class="muted">@(HasCache ? "Pokazuję ostatnio zapisane dane." : "Połącz się ponownie, aby zobaczyć aktualne dane.")</p>
+        </div>
+        <a class="btn btn-primary btn-sm" href="/ustawienia">Połącz ponownie</a>
+    </div>
+}
+else if (Error is AdapterUnavailableException)
+{
+    <div class="notice notice-warn" role="alert">
+        <Icon Name="cloud-off" Size="20" />
+        <div class="notice-text">
+            <p class="notice-title">@(HasCache ? "System niedostępny, pokazuję dane z cache" : "System niedostępny")</p>
+            <p class="muted">@(HasCache ? "Spróbujemy ponownie przy następnym odświeżeniu." : $"{(Source is { } s2 ? Fmt.SystemName(s2) : "System")} nie odpowiada, a nie mamy jeszcze zapisanych danych. Spróbuj za chwilę.")</p>
+        </div>
+        @if (OnRetry.HasDelegate) { <button type="button" class="btn btn-sm" @onclick="OnRetry">Spróbuj ponownie</button> }
+    </div>
+}
+else if (Error is AdapterNotSupportedException)
+{
+    <div class="notice notice-info" role="status">
+        <Icon Name="info" Size="20" />
+        <div class="notice-text"><p class="notice-title">Ta funkcja nie jest dostępna w Twojej instalacji uczelni.</p></div>
+    </div>
+}
+else
+{
+    <div class="notice notice-danger" role="alert">
+        <Icon Name="alert" Size="20" />
+        <div class="notice-text">
+            <p class="notice-title">Coś poszło nie tak</p>
+            <p class="muted">@Error.Message</p>
+        </div>
+        @if (OnRetry.HasDelegate) { <button type="button" class="btn btn-sm" @onclick="OnRetry">Spróbuj ponownie</button> }
+    </div>
+}
+
+@code {
+    [Parameter] public Exception? Error { get; set; }
+    /// <summary>System, którego dotyczy błąd (gdy wyjątek go nie niesie).</summary>
+    [Parameter] public SourceSystem? Source { get; set; }
+    /// <summary>Czy poniżej widoczne są jakieś (starsze) dane.</summary>
+    [Parameter] public bool HasCache { get; set; }
+    [Parameter] public bool Compact { get; set; }
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

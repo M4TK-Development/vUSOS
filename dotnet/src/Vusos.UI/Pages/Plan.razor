@@ -1,0 +1,170 @@
+@page "/plan"
+@inject IConnectionManager Connections
+@inject TimeProvider Clock
+@inject VusosJs Js
+
+<PageTitle>Plan – vUSOS</PageTitle>
+<PageHeader Title="Plan zajęć" Subtitle="@_week.Label()">
+    <Actions>
+        <div class="week-nav" role="group" aria-label="Nawigacja po tygodniach">
+            <button type="button" class="btn btn-icon" @onclick="() => Shift(-7)" aria-label="Poprzedni tydzień"><Icon Name="chevron-left" /></button>
+            <button type="button" class="btn" @onclick="GoToday" disabled="@IsCurrentWeek">Dziś</button>
+            <button type="button" class="btn btn-icon" @onclick="() => Shift(7)" aria-label="Następny tydzień"><Icon Name="chevron-right" /></button>
+        </div>
+    </Actions>
+</PageHeader>
+
+<AsyncView T="PlanData" Source="SourceSystem.Usos" Key="@_week.From" Load="LoadAsync" OnLoaded="OnLoadedAsync" Context="data">
+    <Placeholder><Skeleton Rows="4" Cards="true" /></Placeholder>
+    <ChildContent>
+        @if (data.PlatonError is not null)
+        {
+            <ErrorState Error="data.PlatonError" Source="SourceSystem.Platon" Compact="true" />
+        }
+        else if (data.PlatonNotConnected)
+        {
+            <p class="muted small">Terminy z Platona pojawią się po połączeniu z Platonem w ustawieniach.</p>
+        }
+        <div class="week">
+            @foreach (var day in data.Range.Days())
+            {
+                var entries = data.Entries.Where(e => Fmt.DateOf(e.Start) == day).OrderBy(e => e.Start).ToList();
+                var events = data.Events.Where(e => Fmt.DateOf(e.Start) == day).OrderBy(e => e.Start).ToList();
+                var isToday = day == Fmt.Today(Clock);
+                <section class="day @(isToday ? "today" : null) @(entries.Count + events.Count == 0 ? "day-none" : null)" id="@DayId(day)" aria-label="@Fmt.DayLong(day)">
+                    <h3 class="day-head">
+                        <span class="day-name">@Fmt.DayShort(day)</span>
+                        <span class="day-num">@Fmt.DayNumber(day)</span>
+                        @if (isToday) { <Badge Tone="brand">dziś</Badge> }
+                    </h3>
+                    @if (entries.Count + events.Count == 0)
+                    {
+                        <p class="muted small day-empty">Brak zajęć</p>
+                    }
+                    else
+                    {
+                        <ul class="day-list">
+                            @foreach (var e in entries)
+                            {
+                                var entry = e;
+                                <li>
+                                    <button type="button" class="slot slot-@Fmt.ClassTypeTone(entry.ClassType)" @onclick="() => _selectedEntry = entry">
+                                        <span class="slot-time mono">@Fmt.Time(entry.Start)–@Fmt.Time(entry.End)</span>
+                                        <span class="slot-title">@entry.CourseName.Pl</span>
+                                        <span class="slot-meta">@SlotMeta(entry)</span>
+                                    </button>
+                                </li>
+                            }
+                            @foreach (var ev in events)
+                            {
+                                var evt = ev;
+                                <li>
+                                    <button type="button" class="pill" @onclick="() => _selectedEvent = evt">
+                                        <Icon Name="clock" Size="14" />
+                                        <span class="mono">@Fmt.Time(evt.Start)</span>
+                                        <span class="pill-text">@evt.Name</span>
+                                    </button>
+                                </li>
+                            }
+                        </ul>
+                    }
+                </section>
+            }
+        </div>
+        <p class="muted small legend"><span class="pill pill-static"><Icon Name="clock" Size="14" /> termin</span> – zadania i testy z Platona</p>
+    </ChildContent>
+</AsyncView>
+
+<Sheet Open="_selectedEntry is not null" OnClose="() => _selectedEntry = null" Title="@(_selectedEntry?.CourseName.Pl ?? "")">
+    @if (_selectedEntry is { } c)
+    {
+        <dl class="details">
+            <dt>Termin</dt><dd>@Fmt.DayLong(Fmt.DateOf(c.Start)), @Fmt.Time(c.Start)–@Fmt.Time(c.End)</dd>
+            @if (!string.IsNullOrEmpty(c.ClassType)) { <dt>Rodzaj zajęć</dt><dd><Badge Tone="@Fmt.ClassTypeTone(c.ClassType)">@Fmt.ClassTypeLabel(c.ClassType)</Badge>@(c.GroupNumber is { } g ? $" · grupa {g}" : "")</dd> }
+            @if (!string.IsNullOrEmpty(c.Room) || !string.IsNullOrEmpty(c.Building)) { <dt>Miejsce</dt><dd>@(string.IsNullOrEmpty(c.Room) ? "" : $"sala {c.Room}")@(string.IsNullOrEmpty(c.Building) ? "" : $", {c.Building}")</dd> }
+            @if (c.Lecturers.Count > 0) { <dt>Prowadzący</dt><dd>@Fmt.Lecturers(c.Lecturers)</dd> }
+            <dt>Źródło</dt><dd><SourceBadge Source="c.Source" /></dd>
+        </dl>
+        @if (!string.IsNullOrEmpty(c.Url)) { <p><ExternalLink Url="@c.Url" Class="btn"><Icon Name="external" Size="16" /> Otwórz w systemie</ExternalLink></p> }
+    }
+</Sheet>
+
+<Sheet Open="_selectedEvent is not null" OnClose="() => _selectedEvent = null" Title="@(_selectedEvent?.Name ?? "")">
+    @if (_selectedEvent is { } ev)
+    {
+        <dl class="details">
+            <dt>Termin</dt><dd>@Fmt.DateTime(ev.Start)@(ev.End is { } end && end != ev.Start ? " – " + Fmt.Time(end) : "")</dd>
+            @if (!string.IsNullOrEmpty(ev.CourseName)) { <dt>Kurs</dt><dd>@ev.CourseName</dd> }
+            @if (!string.IsNullOrEmpty(ev.ModuleType)) { <dt>Typ</dt><dd>@ModuleLabel(ev.ModuleType)</dd> }
+            <dt>Źródło</dt><dd><SourceBadge Source="SourceSystem.Platon" /></dd>
+        </dl>
+        @if (!string.IsNullOrEmpty(ev.Url)) { <p><ExternalLink Url="@ev.Url" Class="btn"><Icon Name="external" Size="16" /> @(ev.ActionName ?? "Otwórz w Platonie")</ExternalLink></p> }
+    }
+</Sheet>
+
+@code {
+    private sealed record PlanData(DateRange Range, IReadOnlyList<TimetableEntry> Entries, IReadOnlyList<LmsEvent> Events, Exception? PlatonError, bool PlatonNotConnected);
+
+    private DateRange _week;
+    private TimetableEntry? _selectedEntry;
+    private LmsEvent? _selectedEvent;
+    private bool _scrolled;
+
+    protected override void OnInitialized() => _week = DateRange.WeekOf(Fmt.Today(Clock));
+
+    private bool IsCurrentWeek => _week.Contains(Fmt.Today(Clock));
+    private void Shift(int days) { _week = _week.Shift(days); _scrolled = true; }
+    private void GoToday() { _week = DateRange.WeekOf(Fmt.Today(Clock)); _scrolled = false; }
+    private static string DayId(DateOnly d) => "day-" + d.ToString("yyyy-MM-dd");
+
+    private async Task<PlanData> LoadAsync(CancellationToken ct)
+    {
+        var range = _week;
+        var usos = await Connections.GetUsosAsync(ct);
+        var entries = await usos.GetTimetableAsync(range.From, range.To, ct);
+
+        IReadOnlyList<LmsEvent> events = [];
+        Exception? platonError = null;
+        var notConnected = false;
+        var today = Fmt.Today(Clock);
+        if (range.To >= today)
+        {
+            try
+            {
+                var platon = await Connections.GetPlatonAsync(ct);
+                var days = Math.Clamp(range.To.DayNumber - today.DayNumber + 1, 1, 120);
+                events = (await platon.GetUpcomingEventsAsync(days, ct)).Where(e => range.Contains(Fmt.DateOf(e.Start))).ToList();
+            }
+            catch (NotConnectedException) { notConnected = true; }
+            catch (OperationCanceledException) { throw; }
+            catch (Exception e) { platonError = e; }
+        }
+        return new PlanData(range, entries, events, platonError, notConnected);
+    }
+
+    private async Task OnLoadedAsync(PlanData data)
+    {
+        // na telefonie wracamy do dzisiejszego dnia na liście
+        if (_scrolled || !data.Range.Contains(Fmt.Today(Clock))) return;
+        _scrolled = true;
+        await Task.Delay(120);
+        await Js.ScrollIntoViewAsync(DayId(Fmt.Today(Clock)), onlyOnNarrow: true);
+    }
+
+    private static string SlotMeta(TimetableEntry e)
+    {
+        var parts = new List<string>();
+        if (!string.IsNullOrEmpty(e.ClassType)) parts.Add(Fmt.ClassTypeLabel(e.ClassType));
+        if (!string.IsNullOrEmpty(e.Room)) parts.Add("sala " + e.Room);
+        return string.Join(" · ", parts);
+    }
+
+    private static string ModuleLabel(string type) => type switch
+    {
+        "assign" => "zadanie",
+        "quiz" => "test",
+        "forum" => "forum",
+        "lesson" => "lekcja",
+        _ => type,
+    };
+}

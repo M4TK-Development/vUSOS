@@ -1,0 +1,170 @@
+@page "/testy"
+@inject IQuizService QuizSvc
+@inject IConnectionManager Connections
+@inject IConnectivity Connectivity
+@inject NavigationManager Nav
+@inject TimeProvider Clock
+
+<PageTitle>Testy – vUSOS</PageTitle>
+<PageHeader Title="Testy" Subtitle="Platon – quizy ze wszystkich kursów" />
+
+<AsyncView T="QuizzesData" Source="SourceSystem.Platon" Load="LoadAsync" IsEmpty="d => d.Rows.Count == 0" Context="d">
+    <Placeholder><Skeleton Rows="3" Cards="true" /></Placeholder>
+    <EmptyContent><div class="card"><EmptyState Title="Brak testów" Hint="W Twoich kursach nie ma teraz żadnych quizów." IconName="quiz" /></div></EmptyContent>
+    <ChildContent>
+        @{ var now = Clock.GetUtcNow(); }
+        <div class="quiz-grid">
+            @foreach (var row in d.Rows)
+            {
+                var q = row.Quiz;
+                var open = (q.TimeOpen is null || q.TimeOpen <= now) && (q.TimeClose is null || q.TimeClose > now);
+                var notYet = q.TimeOpen is { } to && to > now;
+                var inProgress = row.Attempts.FirstOrDefault(a => a.State is QuizAttemptState.InProgress or QuizAttemptState.Overdue);
+                var finished = row.Attempts.Count(a => a.State is QuizAttemptState.Finished or QuizAttemptState.Abandoned);
+                var attemptsLeft = q.Attempts == 0 || finished < q.Attempts;
+                var canStart = open && q.HasQuestions && attemptsLeft && inProgress is null;
+                <article class="card quiz-card">
+                    <div class="item-meta">
+                        @if (notYet) { <Badge Tone="info">wkrótce</Badge> }
+                        else if (open) { <Badge Tone="ok">otwarty</Badge> }
+                        else { <Badge>zamknięty</Badge> }
+                        @if (q.AllowOfflineAttempts) { <Badge Tone="brand" Title="Wykładowca zezwolił na rozwiązywanie offline (po rozpoczęciu online)"><Icon Name="cloud-off" Size="12" /> offline możliwy</Badge> }
+                        @if (inProgress is not null) { <Badge Tone="warn">w trakcie</Badge> }
+                    </div>
+                    <h2 class="item-title">@q.Name</h2>
+                    @if (!string.IsNullOrEmpty(row.CourseName)) { <p class="muted small">@row.CourseName</p> }
+                    <dl class="details compact">
+                        @if (q.TimeOpen is { } o) { <dt>Otwarcie</dt><dd>@Fmt.DateTime(o)</dd> }
+                        @if (q.TimeClose is { } c) { <dt>Zamknięcie</dt><dd>@Fmt.DateTime(c)</dd> }
+                        @if (q.TimeLimitSeconds is { } secs and > 0) { <dt>Limit czasu</dt><dd>@(secs / 60) min</dd> }
+                        <dt>Podejścia</dt><dd>@finished@(q.Attempts == 0 ? " (bez limitu)" : $" z {q.Attempts}")</dd>
+                    </dl>
+                    @if (row.Attempts.Count > 0)
+                    {
+                        <ul class="attempts">
+                            @foreach (var a in row.Attempts.OrderBy(a => a.Attempt))
+                            {
+                                <li>
+                                    <span>Podejście @a.Attempt – @StateLabel(a.State)@(a.SumGrades is { } g ? $", wynik {g.ToString("0.##", Fmt.Pl)}" : "")</span>
+                                    @if (a.State is QuizAttemptState.Finished)
+                                    {
+                                        <a class="link-sm" href="/testy/podejscie/@a.Id/przeglad">Przejrzyj</a>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                    }
+                    <div class="card-footer">
+                        @if (inProgress is not null)
+                        {
+                            <a class="btn btn-primary" href="/testy/podejscie/@inProgress.Id"><Icon Name="play" Size="16" /> Kontynuuj</a>
+                        }
+                        else if (canStart)
+                        {
+                            <button type="button" class="btn btn-primary" @onclick="() => Prompt(q)" disabled="@(!Connectivity.IsOnline)"><Icon Name="play" Size="16" /> Rozpocznij</button>
+                            @if (!Connectivity.IsOnline) { <span class="muted small">Rozpoczęcie wymaga połączenia z siecią.</span> }
+                        }
+                        else if (!open) { <span class="muted small">Test niedostępny w tym terminie.</span> }
+                        else if (!attemptsLeft) { <span class="muted small">Wykorzystano wszystkie podejścia.</span> }
+                    </div>
+                </article>
+            }
+        </div>
+    </ChildContent>
+</AsyncView>
+
+<Dialog Open="_pending is not null" OnClose="Cancel" Title="Rozpocząć test?">
+    <ChildContent>
+        @if (_pending is { } p)
+        {
+            <p><strong>@p.Name</strong></p>
+            @if (p.TimeLimitSeconds is { } secs and > 0)
+            {
+                <p>Masz <strong>@(secs / 60) min</strong> na rozwiązanie. Czas liczy się od teraz i nie zatrzymuje się po zamknięciu aplikacji.</p>
+            }
+            @if (p.AllowOfflineAttempts)
+            {
+                <p class="muted small">Ten test możesz kontynuować bez internetu – odpowiedzi zapiszą się na urządzeniu i wyślą po odzyskaniu sieci.</p>
+            }
+            else
+            {
+                <p class="muted small">Ten test wymaga stałego połączenia z internetem.</p>
+            }
+            <label class="field">
+                <span>Hasło do testu (jeśli wymagane)</span>
+                <input class="input" type="password" @bind="_password" autocomplete="off" />
+            </label>
+            @if (_startError is not null) { <p class="text-danger small" role="alert">@_startError</p> }
+        }
+    </ChildContent>
+    <Footer>
+        <button type="button" class="btn" @onclick="Cancel">Anuluj</button>
+        <button type="button" class="btn btn-primary" @onclick="StartAsync" disabled="@_starting">@(_starting ? "Rozpoczynanie…" : "Rozpocznij")</button>
+    </Footer>
+</Dialog>
+
+@code {
+    private sealed record QuizRow(LmsQuiz Quiz, string? CourseName, IReadOnlyList<QuizAttempt> Attempts);
+    private sealed record QuizzesData(IReadOnlyList<QuizRow> Rows);
+
+    private LmsQuiz? _pending;
+    private string _password = "";
+    private bool _starting;
+    private string? _startError;
+
+    private async Task<QuizzesData> LoadAsync(CancellationToken ct)
+    {
+        var quizzes = await QuizSvc.GetQuizzesAsync(null, ct);
+        var courseNames = new Dictionary<string, string>();
+        try
+        {
+            var platon = await Connections.GetPlatonAsync(ct);
+            foreach (var c in await platon.GetCoursesAsync(ct)) courseNames[c.Id] = c.FullName;
+        }
+        catch (Exception e) when (e is not OperationCanceledException) { }
+
+        var rows = await Task.WhenAll(quizzes.Select(async q =>
+        {
+            IReadOnlyList<QuizAttempt> attempts = [];
+            try { attempts = await QuizSvc.GetAttemptsAsync(q.Id, ct); }
+            catch (Exception e) when (e is not OperationCanceledException) { }
+            return new QuizRow(q, courseNames.GetValueOrDefault(q.CourseId), attempts);
+        }));
+        return new QuizzesData(rows
+            .OrderBy(r => r.Quiz.TimeClose ?? DateTimeOffset.MaxValue)
+            .ToList());
+    }
+
+    private static string StateLabel(QuizAttemptState s) => s switch
+    {
+        QuizAttemptState.InProgress => "w trakcie",
+        QuizAttemptState.Overdue => "po czasie",
+        QuizAttemptState.Finished => "zakończone",
+        _ => "porzucone",
+    };
+
+    private void Prompt(LmsQuiz quiz)
+    {
+        _pending = quiz;
+        _password = "";
+        _startError = null;
+    }
+
+    private void Cancel() => _pending = null;
+
+    private async Task StartAsync()
+    {
+        if (_pending is null) return;
+        _starting = true;
+        _startError = null;
+        try
+        {
+            IReadOnlyList<QuizAnswer>? preflight = string.IsNullOrWhiteSpace(_password) ? null : [new QuizAnswer("quizpassword", _password)];
+            var session = await QuizSvc.OpenAttemptAsync(_pending, preflight);
+            _pending = null;
+            Nav.NavigateTo($"/testy/podejscie/{Uri.EscapeDataString(session.Data.Attempt.Id)}");
+        }
+        catch (Exception e) { _startError = e.Message; }
+        _starting = false;
+    }
+}

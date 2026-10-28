@@ -1,0 +1,30 @@
+[
+  {
+    "type": "classgroup2",
+    "start_time": "2025-10-06 08:30:00",
+    "end_time": "2025-10-06 10:00:00",
+    "name": { "pl": "Algorytmy i struktury danych - Wykład", "en": "Algorithms and data structures - Lecture" },
+    "url": "https://usosweb.vistula.example/kontroler.php?_action=katalog2/przedmioty/pokazZajecia&zaj_cyk_id=1",
+    "unit_id": 5201,
+    "course_id": "INF-ALG",
+    "course_name": { "pl": "Algorytmy i struktury danych", "en": "Algorithms and data structures" },
+    "classtype_name": { "pl": "Wykład", "en": "Lecture" },
+    "group_number": 1,
+    "room_number": "A-214",
+    "building_name": { "pl": "Budynek A" },
+    "lecturer_ids": [101, "102"]
+  },
+  {
+    "type": "exam",
+    "start_time": "2025-10-26 02:30:00",
+    "end_time": "2025-10-26 04:00:00",
+    "name": { "pl": "Egzamin próbny" },
+    "course_id": null,
+    "classtype_name": null,
+    "group_number": null,
+    "room_number": null,
+    "building_name": null,
+    "lecturer_ids": []
+  },
+  { "start_time": "not a date", "end_time": "x", "name": "bad" }
+]

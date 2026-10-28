@@ -1,0 +1,49 @@
+@implements IAsyncDisposable
+@inject VusosJs Js
+
+@if (Open)
+{
+    <div class="overlay" @onclick="CloseAsync" aria-hidden="true"></div>
+    <div class="@(Variant == "dialog" ? "dialog" : "sheet")" role="dialog" aria-modal="true" aria-labelledby="@_titleId" id="@_id" tabindex="-1"
+         @onkeydown="OnKey">
+        <header class="sheet-head">
+            <h2 id="@_titleId">@Title</h2>
+            <button type="button" class="icon-btn" @onclick="CloseAsync" aria-label="Zamknij"><Icon Name="x" /></button>
+        </header>
+        <div class="sheet-body">@ChildContent</div>
+        @if (Footer is not null) { <footer class="sheet-foot">@Footer</footer> }
+    </div>
+}
+
+@code {
+    private readonly string _id = "dlg-" + Guid.NewGuid().ToString("N")[..8];
+    private string _titleId => _id + "-t";
+    private bool _wasOpen;
+
+    [Parameter] public bool Open { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public string Title { get; set; } = "";
+    /// <summary>"sheet" (dół ekranu na telefonie, panel na szerokich) lub "dialog" (wyśrodkowane okno).</summary>
+    [Parameter] public string Variant { get; set; } = "sheet";
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Open != _wasOpen)
+        {
+            _wasOpen = Open;
+            await Js.LockScrollAsync(Open);
+            if (Open) await Js.FocusAsync(_id);
+        }
+    }
+
+    private Task CloseAsync() => OnClose.InvokeAsync();
+
+    private Task OnKey(KeyboardEventArgs e) => e.Key == "Escape" ? CloseAsync() : Task.CompletedTask;
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_wasOpen) await Js.LockScrollAsync(false);
+    }
+}

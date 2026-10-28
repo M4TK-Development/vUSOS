@@ -1,0 +1,281 @@
+@page "/ustawienia"
+@implements IDisposable
+@inject IConnectionManager Connections
+@inject IConnectFlows Flows
+@inject IMaterialService Materials
+@inject IQuizService Quizzes
+@inject ISyncStatus Sync
+@inject IAuthSession Auth
+@inject ToastService Toasts
+@inject IServiceProvider Services
+
+<PageTitle>Ustawienia – vUSOS</PageTitle>
+<PageHeader Title="Ustawienia" Subtitle="Połączenia, pamięć offline, konto" />
+
+<div class="settings-grid">
+    <Card Title="Konto" IconName="user">
+        <p><strong>@(Auth.DisplayName ?? "Zalogowany użytkownik")</strong></p>
+        @if (!string.IsNullOrEmpty(Auth.Email)) { <p class="muted">@Auth.Email</p> }
+        <p><button type="button" class="btn" @onclick="() => _confirmLogout = true"><Icon Name="log-out" Size="16" /> Wyloguj</button></p>
+    </Card>
+
+    <Card Title="USOS" IconName="grades">
+        <Actions>@StatusBadge(SourceSystem.Usos)</Actions>
+        <ChildContent>
+            @ConnectionDetails(SourceSystem.Usos)
+            <div class="btn-row">
+                <button type="button" class="btn btn-primary" @onclick="ConnectUsos" disabled="@Busy("usos")">
+                    <Icon Name="plug" Size="16" /> @(IsConnected(SourceSystem.Usos) ? "Połącz ponownie z USOS" : "Połącz z USOS")
+                </button>
+                @if (CanDisconnect(SourceSystem.Usos)) { <button type="button" class="btn" @onclick="() => _confirmDisconnect = SourceSystem.Usos">Rozłącz</button> }
+            </div>
+            <p class="muted small">Otworzy się przeglądarka z logowaniem kontem uczelni. Po zalogowaniu wrócisz do aplikacji.</p>
+            <Collapsible Title="Tryb awaryjny (cookies)">
+                <p class="muted small">Jeśli USOS API jest niedostępne: zaloguj się do USOSweb w przeglądarce i wklej tutaj zawartość nagłówka <code>Cookie</code> sesji.</p>
+                <textarea class="input mono" rows="3" @bind="_usosCookies" @bind:event="oninput" placeholder="PHPSESSID=…; …" aria-label="Cookies USOSweb"></textarea>
+                <button type="button" class="btn" disabled="@(Busy("usos-cookies") || string.IsNullOrWhiteSpace(_usosCookies))"
+                        @onclick="SubmitUsosCookies">Zapisz cookies</button>
+            </Collapsible>
+            @ErrorFor("usos")
+            @ErrorFor("usos-cookies")
+        </ChildContent>
+    </Card>
+
+    <Card Title="Platon" IconName="book">
+        <Actions>@StatusBadge(SourceSystem.Platon)</Actions>
+        <ChildContent>
+            @ConnectionDetails(SourceSystem.Platon)
+            <div class="btn-row">
+                <button type="button" class="btn btn-primary" @onclick="ConnectPlaton" disabled="@Busy("platon")">
+                    <Icon Name="plug" Size="16" /> @(IsConnected(SourceSystem.Platon) ? "Połącz ponownie z Platonem" : "Połącz z Platonem")
+                </button>
+                @if (CanDisconnect(SourceSystem.Platon)) { <button type="button" class="btn" @onclick="() => _confirmDisconnect = SourceSystem.Platon">Rozłącz</button> }
+            </div>
+            <p class="muted small">Jedno kliknięcie: logujesz się kontem uczelni, a aplikacja sama odbiera token dostępu.</p>
+            <Collapsible Title="Wklej token (jeśli automatyczne połączenie nie działa)">
+                <ol class="steps small">
+                    <li>Otwórz Platon w przeglądarce i zaloguj się kontem uczelni (M365).</li>
+                    <li>Po zalogowaniu przeglądarka spróbuje otworzyć adres zaczynający się od <code>vusos://token=…</code> (lub <code>moodlemobile://token=…</code>) – zobaczysz błąd.</li>
+                    <li>Skopiuj ten adres w całości, wklej go poniżej i zatwierdź.</li>
+                </ol>
+                <textarea class="input mono" rows="3" @bind="_platonToken" @bind:event="oninput" placeholder="vusos://token=…" aria-label="Adres z tokenem"></textarea>
+                <button type="button" class="btn" disabled="@(Busy("platon-token") || string.IsNullOrWhiteSpace(_platonToken))"
+                        @onclick="SubmitPlatonToken">Zatwierdź token</button>
+            </Collapsible>
+            <Collapsible Title="Tryb awaryjny (cookies + sesskey)">
+                <p class="muted small">Zaloguj się do Platona w przeglądarce. Wklej cookie <code>MoodleSession</code> (nagłówek Cookie) oraz wartość <code>sesskey</code> (widoczną np. w adresie linku „Wyloguj”).</p>
+                <textarea class="input mono" rows="2" @bind="_platonCookies" @bind:event="oninput" placeholder="MoodleSession=…" aria-label="Cookies Platona"></textarea>
+                <input class="input mono" @bind="_sesskey" @bind:event="oninput" placeholder="sesskey" aria-label="sesskey" autocomplete="off" />
+                <button type="button" class="btn" disabled="@(Busy("platon-cookies") || string.IsNullOrWhiteSpace(_platonCookies) || string.IsNullOrWhiteSpace(_sesskey))"
+                        @onclick="SubmitPlatonCookies">Zapisz sesję</button>
+            </Collapsible>
+            @ErrorFor("platon")
+            @ErrorFor("platon-token")
+            @ErrorFor("platon-cookies")
+        </ChildContent>
+    </Card>
+
+    <Card Title="Pamięć offline" IconName="download">
+        <p>Pobrane materiały zajmują <strong>@Fmt.Bytes(_totalSize)</strong>@(_fileCount > 0 ? $" ({_fileCount} {Fmt.Plural(_fileCount, "plik", "pliki", "plików")})" : "").</p>
+        <p class="muted small">Pobrane pliki otwierają się bez internetu. Usunięcie ich z urządzenia nie usuwa niczego z Platona.</p>
+        <button type="button" class="btn" @onclick="() => _confirmClear = true" disabled="@(_fileCount == 0 && _totalSize == 0)"><Icon Name="trash" Size="16" /> Wyczyść pobrane</button>
+    </Card>
+
+    <Card Title="Synchronizacja" IconName="refresh">
+        @{ var pending = Sync.Get(SourceSystem.Usos).PendingActions + Sync.Get(SourceSystem.Platon).PendingActions; }
+        @if (pending == 0)
+        {
+            <p>Wszystko zsynchronizowane.</p>
+        }
+        else
+        {
+            <p><strong>@pending</strong> @Fmt.Plural(pending, "zmiana czeka", "zmiany czekają", "zmian czeka") na wysłanie (np. odpowiedzi w testach zapisane offline).</p>
+            <button type="button" class="btn btn-primary" @onclick="SyncNowAsync" disabled="@_syncing">@(_syncing ? "Synchronizacja…" : "Synchronizuj teraz")</button>
+        }
+    </Card>
+
+    <Card Title="O aplikacji" IconName="info">
+        <p>vUSOS – @(University?.Name ?? "uczelniana platforma studenta")</p>
+        <p class="muted small">Aplikacja nieoficjalna. Dane i poświadczenia są przechowywane wyłącznie na Twoim urządzeniu. Aplikacja nigdy nie prosi o hasło uczelniane.</p>
+    </Card>
+</div>
+
+<Dialog Open="_confirmLogout" OnClose="() => _confirmLogout = false" Title="Wylogować?">
+    <ChildContent><p>Wylogowanie z aplikacji zakończy sesję na tym urządzeniu. Dane zapisane lokalnie mogą zostać usunięte.</p></ChildContent>
+    <Footer>
+        <button type="button" class="btn" @onclick="() => _confirmLogout = false">Anuluj</button>
+        <button type="button" class="btn btn-primary" @onclick="LogoutAsync">Wyloguj</button>
+    </Footer>
+</Dialog>
+
+<Dialog Open="_confirmDisconnect is not null" OnClose="() => _confirmDisconnect = null" Title="@($"Rozłączyć {(_confirmDisconnect is { } cd ? Fmt.SystemName(cd) : "")}?")">
+    <ChildContent><p>Poświadczenia zostaną usunięte z urządzenia. Zapisane dane nadal będą dostępne offline.</p></ChildContent>
+    <Footer>
+        <button type="button" class="btn" @onclick="() => _confirmDisconnect = null">Anuluj</button>
+        <button type="button" class="btn btn-primary" @onclick="DisconnectAsync">Rozłącz</button>
+    </Footer>
+</Dialog>
+
+<Dialog Open="_confirmClear" OnClose="() => _confirmClear = false" Title="Wyczyścić pobrane pliki?">
+    <ChildContent><p>Usuniesz z urządzenia wszystkie pobrane materiały (@Fmt.Bytes(_totalSize)). Później możesz pobrać je ponownie.</p></ChildContent>
+    <Footer>
+        <button type="button" class="btn" @onclick="() => _confirmClear = false">Anuluj</button>
+        <button type="button" class="btn btn-primary" @onclick="ClearAsync">Wyczyść</button>
+    </Footer>
+</Dialog>
+
+@code {
+    private IReadOnlyDictionary<SourceSystem, ConnectionInfo> _status = new Dictionary<SourceSystem, ConnectionInfo>();
+    private readonly HashSet<string> _busy = [];
+    private readonly Dictionary<string, string> _errors = [];
+    private long _totalSize;
+    private int _fileCount;
+    private bool _syncing, _confirmLogout, _confirmClear;
+    private SourceSystem? _confirmDisconnect;
+    private string _usosCookies = "", _platonToken = "", _platonCookies = "", _sesskey = "";
+
+    private UniversityOptions? University => Services.GetService<Microsoft.Extensions.Options.IOptions<UniversityOptions>>()?.Value;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Connections.Changed += OnChanged;
+        Sync.Changed += OnSync;
+        await RefreshAsync();
+    }
+
+    private void OnChanged(object? sender, SourceSystem s) => _ = InvokeAsync(async () => { await RefreshAsync(); StateHasChanged(); });
+    private void OnSync(object? sender, SyncState s) => _ = InvokeAsync(StateHasChanged);
+
+    private async Task RefreshAsync()
+    {
+        try { _status = await Connections.GetStatusAsync(); } catch (Exception) { }
+        try
+        {
+            _totalSize = await Materials.GetTotalSizeAsync();
+            _fileCount = (await Materials.ListAsync()).Count(m => m.State == DownloadState.Done);
+        }
+        catch (Exception) { }
+    }
+
+    private Task ConnectUsos() => RunAsync("usos", Flows.StartUsosAsync, "Połączono z USOS.");
+    private Task ConnectPlaton() => RunAsync("platon", Flows.StartPlatonAsync, "Połączono z Platonem.");
+    private Task SubmitUsosCookies() => RunAsync("usos-cookies", () => Flows.SubmitUsosCookiesAsync(_usosCookies.Trim()), "Zapisano cookies USOSweb.", () => _usosCookies = "");
+    private Task SubmitPlatonToken() => RunAsync("platon-token", () => Flows.SubmitPlatonTokenAsync(_platonToken.Trim()), "Połączono z Platonem.", () => _platonToken = "");
+    private Task SubmitPlatonCookies() => RunAsync("platon-cookies", () => Flows.SubmitPlatonCookiesAsync(_platonCookies.Trim(), _sesskey.Trim()), "Zapisano sesję Platona.", () => { _platonCookies = ""; _sesskey = ""; });
+
+    private bool Busy(string key) => _busy.Contains(key);
+
+    private RenderFragment ErrorFor(string key) => __builder =>
+    {
+        if (_errors.TryGetValue(key, out var message))
+        {
+            <p class="text-danger small" role="alert">@message</p>
+        }
+    };
+
+    private async Task RunAsync(string key, Func<Task> action, string successMessage, Action? onSuccess = null)
+    {
+        _busy.Add(key);
+        _errors.Remove(key);
+        try
+        {
+            await action();
+            onSuccess?.Invoke();
+            Toasts.Success(successMessage);
+            await RefreshAsync();
+        }
+        catch (Exception e) { _errors[key] = e.Message; }
+        _busy.Remove(key);
+    }
+
+    private ConnectionInfo? Info(SourceSystem s) => _status.TryGetValue(s, out var i) ? i : null;
+    private bool IsConnected(SourceSystem s) => Info(s)?.Status == ConnectionStatus.Connected;
+    private bool CanDisconnect(SourceSystem s) => Info(s) is { Status: not ConnectionStatus.Disconnected };
+
+    private RenderFragment StatusBadge(SourceSystem s) => __builder =>
+    {
+        var st = Info(s)?.Status ?? ConnectionStatus.Disconnected;
+        var (tone, label) = st switch
+        {
+            ConnectionStatus.Connected => ("ok", "Połączono"),
+            ConnectionStatus.Expired => ("warn", "Sesja wygasła"),
+            ConnectionStatus.Error => ("danger", "Błąd połączenia"),
+            _ => ("neutral", "Niepołączono"),
+        };
+        <Badge Tone="@tone">@label</Badge>
+    };
+
+    private RenderFragment ConnectionDetails(SourceSystem s) => __builder =>
+    {
+        var info = Info(s);
+        if (info is null || info.Status == ConnectionStatus.Disconnected) return;
+        <p class="muted small">
+            Tryb: @ModeLabel(info.Mode)
+            @if (info.UpdatedAt is { } at) { <text> · zaktualizowano @Fmt.DateTime(at)</text> }
+        </p>
+        if (!string.IsNullOrEmpty(info.Error))
+        {
+            <p class="text-danger small">@info.Error</p>
+        }
+    };
+
+    private static string ModeLabel(string mode) => mode.ToLowerInvariant() switch
+    {
+        "api" or "oauth" => "USOS API (OAuth)",
+        "web" => "tryb awaryjny (cookies)",
+        "ws" => "Web Services (token)",
+        "mock" => "dane demonstracyjne",
+        _ => mode,
+    };
+
+    private async Task DisconnectAsync()
+    {
+        var system = _confirmDisconnect;
+        _confirmDisconnect = null;
+        if (system is null) return;
+        try
+        {
+            await Connections.DisconnectAsync(system.Value);
+            Toasts.Show($"Rozłączono {Fmt.SystemName(system.Value)}.");
+            await RefreshAsync();
+        }
+        catch (Exception e) { Toasts.Error(e.Message); }
+    }
+
+    private async Task ClearAsync()
+    {
+        _confirmClear = false;
+        try
+        {
+            foreach (var m in await Materials.ListAsync()) await Materials.RemoveAsync(m.Id);
+            Toasts.Success("Usunięto pobrane pliki.");
+            await RefreshAsync();
+        }
+        catch (Exception e) { Toasts.Error(e.Message); }
+    }
+
+    private async Task SyncNowAsync()
+    {
+        _syncing = true;
+        try
+        {
+            var n = await Quizzes.SyncPendingAsync();
+            Toasts.Success(n == 0 ? "Nic do synchronizacji." : $"Zsynchronizowano: {n}.");
+        }
+        catch (Exception e) { Toasts.Error("Synchronizacja nie powiodła się: " + e.Message); }
+        _syncing = false;
+    }
+
+    private async Task LogoutAsync()
+    {
+        _confirmLogout = false;
+        try { await Auth.SignOutAsync(); }
+        catch (Exception e) { Toasts.Error(e.Message); }
+    }
+
+    public void Dispose()
+    {
+        Connections.Changed -= OnChanged;
+        Sync.Changed -= OnSync;
+    }
+}

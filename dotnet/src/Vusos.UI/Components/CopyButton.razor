@@ -1,0 +1,25 @@
+@inject VusosJs Js
+@inject ToastService Toasts
+
+<button type="button" class="btn btn-sm" @onclick="CopyAsync" aria-label="@Label @Text">
+    <Icon Name="@(_done ? "check" : "copy")" Size="14" /> @(_done ? "Skopiowano" : Label)
+</button>
+
+@code {
+    [Parameter, EditorRequired] public string Text { get; set; } = "";
+    [Parameter] public string Label { get; set; } = "Kopiuj";
+    [Parameter] public string? SuccessMessage { get; set; }
+    private bool _done;
+
+    private async Task CopyAsync()
+    {
+        var ok = await Js.CopyTextAsync(Text);
+        if (!ok) { Toasts.Error("Nie udało się skopiować – zaznacz tekst ręcznie."); return; }
+        _done = true;
+        if (SuccessMessage is not null) Toasts.Success(SuccessMessage);
+        StateHasChanged();
+        await Task.Delay(1800);
+        _done = false;
+        StateHasChanged();
+    }
+}

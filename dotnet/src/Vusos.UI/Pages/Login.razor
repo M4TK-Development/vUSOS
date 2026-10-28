@@ -1,0 +1,49 @@
+@page "/logowanie"
+@layout EmptyLayout
+@implements IDisposable
+@inject IAuthSession Auth
+@inject NavigationManager Nav
+
+<PageTitle>Logowanie – vUSOS</PageTitle>
+<div class="login">
+    <div class="card login-card">
+        <div class="brand-block">
+            <span class="brand-mark big" aria-hidden="true">v</span>
+            <h1>vUSOS</h1>
+        </div>
+        <p class="muted">Jednolita platforma studenta: USOS i Platon w jednym miejscu – także offline.</p>
+        <button type="button" class="btn btn-primary btn-block btn-lg" @onclick="SignInAsync" disabled="@_busy">
+            <Icon Name="user" Size="18" /> @(_busy ? "Logowanie…" : "Zaloguj kontem uczelni (M365)")
+        </button>
+        @if (_error is not null) { <p class="text-danger small" role="alert">@_error</p> }
+        <p class="muted small">Logujesz się kontem Microsoft 365 uczelni (@@vistula.edu.pl). Hasła do USOS ani Platona nigdy nie trafiają do aplikacji.</p>
+    </div>
+    <p class="muted small center">Aplikacja nieoficjalna, niezależna od Akademii Finansów i Biznesu Vistula.</p>
+</div>
+
+@code {
+    private bool _busy;
+    private string? _error;
+
+    protected override void OnInitialized()
+    {
+        Auth.Changed += OnChanged;
+        if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
+    }
+
+    private void OnChanged() => _ = InvokeAsync(() =>
+    {
+        if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
+    });
+
+    private async Task SignInAsync()
+    {
+        _busy = true;
+        _error = null;
+        try { await Auth.SignInAsync(); }
+        catch (Exception e) { _error = "Nie udało się zalogować: " + e.Message; }
+        _busy = false;
+    }
+
+    public void Dispose() => Auth.Changed -= OnChanged;
+}

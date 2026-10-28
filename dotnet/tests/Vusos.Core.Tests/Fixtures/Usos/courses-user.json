@@ -1,0 +1,40 @@
+{
+  "course_editions": {
+    "2025Z": [
+      {
+        "course_id": "INF-ALG",
+        "course_name": { "pl": "Algorytmy i struktury danych", "en": "Algorithms and data structures" },
+        "term_id": "2025Z",
+        "user_groups": [
+          { "course_unit_id": 5201, "group_number": 1, "class_type": { "pl": "Wykład", "en": "Lecture" },
+            "lecturers": [{ "first_name": "Marek", "last_name": "Nowicki" }] },
+          { "course_unit_id": 5202, "group_number": "1", "class_type": { "pl": "Ćwiczenia", "en": "Classes" },
+            "lecturers": [{ "first_name": "Tomasz", "last_name": "Lis" }, { "first_name": "Jan", "last_name": "Zając" }] }
+        ]
+      },
+      {
+        "course_id": "INF-ANG",
+        "course_name": { "pl": "Język angielski B2" },
+        "term_id": "2025Z",
+        "user_groups": []
+      },
+      { "broken": true }
+    ],
+    "2024L": [
+      {
+        "course_id": "INF-AM2",
+        "course_name": { "pl": "Analiza matematyczna II" },
+        "user_groups": [
+          { "course_unit_id": 3201, "group_number": 1, "class_type": { "pl": "Wykład" }, "lecturers": [] }
+        ]
+      }
+    ]
+  },
+  "terms": [
+    { "id": "2024L", "name": { "pl": "Semestr letni 2024/25", "en": "Summer semester 2024/25" },
+      "start_date": "2025-02-17", "end_date": "2025-06-15", "finish_date": "2025-09-30", "is_active": false },
+    { "id": "2025Z", "name": { "pl": "Semestr zimowy 2025/26", "en": "Winter semester 2025/26" },
+      "start_date": "2025-10-01", "end_date": "2026-01-25", "finish_date": "2026-02-15", "is_active": true },
+    { "id": "bad", "name": { "pl": "bez dat" } }
+  ]
+}
