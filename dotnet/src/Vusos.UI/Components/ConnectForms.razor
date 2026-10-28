@@ -1,0 +1,77 @@
+@inject IConnectFlows Flows
+@inject ToastService Toasts
+
+@* Tryby awaryjne łączenia z systemem uczelni (wklejenie tokenu / cookies). Wspólne dla strony logowania i ustawień. *@
+@if (Target == SourceSystem.Usos)
+{
+    <Collapsible Title="Tryb awaryjny (cookies)">
+        <p class="muted small">Jeśli USOS API jest niedostępne: zaloguj się do USOSweb w przeglądarce i wklej tutaj zawartość nagłówka <code>Cookie</code> sesji.</p>
+        <textarea class="input mono" rows="3" @bind="_usosCookies" @bind:event="oninput" placeholder="PHPSESSID=…; …" aria-label="Cookies USOSweb"></textarea>
+        <button type="button" class="btn" disabled="@(Busy("usos-cookies") || string.IsNullOrWhiteSpace(_usosCookies))"
+                @onclick="SubmitUsosCookies">Zapisz cookies</button>
+    </Collapsible>
+    @ErrorFor("usos-cookies")
+}
+else
+{
+    <Collapsible Title="Wklej token (jeśli automatyczne połączenie nie działa)">
+        <ol class="steps small">
+            <li>Otwórz Platon w przeglądarce i zaloguj się kontem uczelni (M365).</li>
+            <li>Po zalogowaniu przeglądarka spróbuje otworzyć adres zaczynający się od <code>vusos://token=…</code> (lub <code>moodlemobile://token=…</code>) – zobaczysz błąd.</li>
+            <li>Skopiuj ten adres w całości, wklej go poniżej i zatwierdź.</li>
+        </ol>
+        <textarea class="input mono" rows="3" @bind="_platonToken" @bind:event="oninput" placeholder="vusos://token=…" aria-label="Adres z tokenem"></textarea>
+        <button type="button" class="btn" disabled="@(Busy("platon-token") || string.IsNullOrWhiteSpace(_platonToken))"
+                @onclick="SubmitPlatonToken">Zatwierdź token</button>
+    </Collapsible>
+    <Collapsible Title="Tryb awaryjny (cookies + sesskey)">
+        <p class="muted small">Zaloguj się do Platona w przeglądarce. Wklej cookie <code>MoodleSession</code> (nagłówek Cookie) oraz wartość <code>sesskey</code> (widoczną np. w adresie linku „Wyloguj”).</p>
+        <textarea class="input mono" rows="2" @bind="_platonCookies" @bind:event="oninput" placeholder="MoodleSession=…" aria-label="Cookies Platona"></textarea>
+        <input class="input mono" @bind="_sesskey" @bind:event="oninput" placeholder="sesskey" aria-label="sesskey" autocomplete="off" />
+        <button type="button" class="btn" disabled="@(Busy("platon-cookies") || string.IsNullOrWhiteSpace(_platonCookies) || string.IsNullOrWhiteSpace(_sesskey))"
+                @onclick="SubmitPlatonCookies">Zapisz sesję</button>
+    </Collapsible>
+    @ErrorFor("platon-token")
+    @ErrorFor("platon-cookies")
+}
+
+@code {
+    /// <summary>Dla którego systemu pokazać formularze (USOS: cookies; Platon: token i cookies + sesskey).</summary>
+    [Parameter, EditorRequired] public SourceSystem Target { get; set; }
+
+    /// <summary>Wywoływane po udanym zapisaniu poświadczeń.</summary>
+    [Parameter] public EventCallback OnConnected { get; set; }
+
+    private readonly HashSet<string> _busy = [];
+    private readonly Dictionary<string, string> _errors = [];
+    private string _usosCookies = "", _platonToken = "", _platonCookies = "", _sesskey = "";
+
+    private bool Busy(string key) => _busy.Contains(key);
+
+    private Task SubmitUsosCookies() => RunAsync("usos-cookies", () => Flows.SubmitUsosCookiesAsync(_usosCookies.Trim()), "Zapisano cookies USOSweb.", () => _usosCookies = "");
+    private Task SubmitPlatonToken() => RunAsync("platon-token", () => Flows.SubmitPlatonTokenAsync(_platonToken.Trim()), "Połączono z Platonem.", () => _platonToken = "");
+    private Task SubmitPlatonCookies() => RunAsync("platon-cookies", () => Flows.SubmitPlatonCookiesAsync(_platonCookies.Trim(), _sesskey.Trim()), "Zapisano sesję Platona.", () => { _platonCookies = ""; _sesskey = ""; });
+
+    private RenderFragment ErrorFor(string key) => __builder =>
+    {
+        if (_errors.TryGetValue(key, out var message))
+        {
+            <p class="text-danger small" role="alert">@message</p>
+        }
+    };
+
+    private async Task RunAsync(string key, Func<Task> action, string successMessage, Action onSuccess)
+    {
+        _busy.Add(key);
+        _errors.Remove(key);
+        try
+        {
+            await action();
+            onSuccess();
+            Toasts.Success(successMessage);
+            await OnConnected.InvokeAsync();
+        }
+        catch (Exception e) { _errors[key] = e.Message; }
+        _busy.Remove(key);
+    }
+}

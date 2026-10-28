@@ -19,13 +19,33 @@ public interface IConnectFlows
     Task SubmitPlatonCookiesAsync(string cookies, string sesskey);
 }
 
-/// <summary>Sesja użytkownika aplikacji (konto M365 uczelni). Host: MSAL w MAUI, dev/OIDC w Blazor Server.</summary>
+/// <summary>
+/// Sesja użytkownika aplikacji. Domyślnie tożsamość wynika z połączeń z USOS/Platonem (<see cref="ConnectionAuthSession"/>:
+/// student loguje się kontem M365 uczelni na ich stronach, bez rejestracji aplikacji w Entra ID). Opcjonalnie host może
+/// logować przez własnego dostawcę tożsamości: MSAL w MAUI (<c>University:EntraClientId</c>), OIDC/dev w Blazor Server.
+/// </summary>
 public interface IAuthSession
 {
     bool IsSignedIn { get; }
     string? DisplayName { get; }
     string? Email { get; }
+
+    /// <summary>
+    /// Czy host ma własne logowanie przez dostawcę tożsamości (MSAL / OIDC) i <see cref="SignInAsync"/> je uruchamia.
+    /// <c>false</c> = logowanie przez połączenie z Platonem lub USOS (strona logowania pokazuje przyciski łączenia).
+    /// </summary>
+    bool SupportsExternalIdentityProvider => false;
+
+    /// <summary>Wczytuje zapisany stan (offline, z lokalnego magazynu) przed pierwszym sprawdzeniem <see cref="IsSignedIn"/>.</summary>
+    Task InitializeAsync() => Task.CompletedTask;
+
     Task SignInAsync();
+
+    /// <summary>
+    /// Wylogowanie. W trybie opartym o połączenia: rozłącza USOS i Platon, usuwa tożsamość oraz lokalne dane
+    /// (cache i pobrane materiały).
+    /// </summary>
     Task SignOutAsync();
+
     event Action? Changed;
 }

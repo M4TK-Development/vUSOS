@@ -1,16 +1,37 @@
 # Vusos.WebHost
 
 Blazor Server hostujący ten sam interfejs (`Vusos.UI`) co aplikacje natywne, ale w przeglądarce. Serwer uruchamia
-`Vusos.Core` **osobno dla każdego zalogowanego użytkownika** (patrz „Izolacja użytkowników”).
+`Vusos.Core` **osobno dla każdego użytkownika** (patrz „Izolacja użytkowników”).
 
 ```bash
 cd dotnet
 dotnet run --project src/Vusos.WebHost --urls http://localhost:5081   # Development: Adapters:Mode=mock, Auth:Mode=dev
 ```
 
-Wejście na `/` bez sesji przekierowuje na `/logowanie`. W trybie `dev` przycisk logowania prowadzi do formularza
+Domyślny tryb logowania (`appsettings.json`) to **`Auth:Mode=anonymous`** – bez rejestracji aplikacji w Entra ID (student nie ma
+uprawnień administratora w tenancie uczelni, więc rejestracja jest niemożliwa albo zablokowana polityką zgód). Plik
+`appsettings.Development.json` zostawia `dev` dla wygody pracy nad UI. W trybie `dev` przycisk logowania prowadzi do formularza
 z adresem e-mail (`@vistula.edu.pl` / `@stu.vistula.edu.pl`); każdy adres ma własne dane. Sesja to cookie `vusos.auth`,
 więc odświeżenie strony jej nie gubi.
+
+## Logowanie anonimowe (`Auth:Mode=anonymous`, domyślne)
+
+- Pierwsza wizyta dostaje podpisane (ASP.NET Core Data Protection), `HttpOnly`, `SameSite=Lax` cookie **`vusos.sid`** z losowym
+  32-bajtowym identyfikatorem (odnawiane przy otwieraniu stron, 180 dni). Identyfikatorem użytkownika jest `anon:{id}`; dane
+  (baza, materiały, `secure.json`) leżą w `{Storage:Root}/users/{hash}` jak dotychczas, osobny kontener Core na użytkownika.
+  Zasoby statyczne i `/health` cookie nie tworzą. Cookie to „klucz do skrytki”, nie konto: kto je ma, ma dane – dlatego `HttpOnly`,
+  a przy HTTPS `Secure`.
+- Tożsamość studenta wynika z połączeń: `IAuthSession` = `ConnectionAuthSession` nad `ConnectionIdentity` kontenera tego użytkownika
+  (`SupportsExternalIdentityProvider = false`). Nowa wizyta widzi `/logowanie` z przyciskami „Zaloguj przez Platon / USOS (konto M365
+  uczelni)”; logowanie odbywa się na stronach uczelni w przeglądarce, serwer nie widzi hasła. Do czasu połączenia dostępne są tylko
+  `/logowanie` i `/ustawienia`. W trybie `Adapters:Mode=mock` oba systemy łączą się same, więc nowy gość jest od razu „zalogowany”
+  profilem mock; w `fake` używane jest wspólne, demonstracyjne `HttpAuthSession`.
+- Callback USOS (`/connect/usos/callback`) rozpoznaje użytkownika po cookie `vusos.sid`. Platon: patrz „USOS: podpisywanie” niżej
+  (wklejenie tokenu z `launch.php`).
+- **Wyloguj** (`/auth/logout`) rozłącza USOS i Platon, zwalnia kontener Core, **kasuje katalog danych użytkownika** i cookie. Żądanie
+  z nagłówkiem `Sec-Fetch-Site: cross-site` tylko usuwa cookie (nie kasuje danych), żeby obca strona nie mogła wyczyścić cudzych plików.
+- Uwaga eksploatacyjna: każdy gość z obsługiwanym obwodem dostaje katalog danych; katalogi porzuconych sesji (cookie wyczyszczone
+  bez „Wyloguj”) nie są jeszcze sprzątane – TODO: sweeper usuwający `users/*` nieużywane dłużej niż żywotność cookie.
 
 ## Tryby
 
@@ -19,12 +40,15 @@ więc odświeżenie strony jej nie gubi.
 | `Adapters:Mode` | `fake` | Dane w pamięci (`Dev/Fake*`), bez Vusos.Core; wspólne dla wszystkich; panel `/dev`. |
 | | `mock` (domyślny) | Prawdziwy Core z adapterami mock: deterministyczne dane, pełny stos (SQLite, cache, materiały, testy offline). Połączenie z USOS/Platonem jest od razu „Połączono”. |
 | | `live` | Prawdziwy Core z USOS API/Platon WS. Użytkownik łączy systemy w Ustawieniach. |
-| `Auth:Mode` | `dev` | Logowanie samym adresem e-mail z dozwolonej domeny (`University:AllowedEmailDomains`). **Tylko Development/Testing**; w Production aplikacja nie wystartuje, chyba że `Auth:AllowDevInProduction=true`. |
+| `Auth:Mode` | `anonymous` (domyślny) | Cookie `vusos.sid`, użytkownik `anon:{id}`, tożsamość z połączeń z USOS/Platonem. Bez Entra ID. |
+| | `dev` | Logowanie samym adresem e-mail z dozwolonej domeny (`University:AllowedEmailDomains`). **Tylko Development/Testing**; w Production aplikacja nie wystartuje, chyba że `Auth:AllowDevInProduction=true`. |
 | | `entra` | OpenID Connect z Microsoft Entra ID (patrz niżej). |
 
 `Dev:AutoSignInEmail` (tylko `Auth:Mode=dev`): `/auth/login` loguje od razu tym adresem, bez formularza.
 
-## Logowanie Entra ID (`Auth:Mode=entra`)
+## Logowanie Entra ID (`Auth:Mode=entra`) – opcjonalne
+
+Wymaga rejestracji aplikacji w Entra ID (w tenancie uczelni potrzebny administrator). Bez niej używaj `anonymous`.
 
 1. Entra admin center → *App registrations* → *New registration*: typ konta **Accounts in any organizational directory
    (multitenant)**, platforma **Web**, redirect URI `{PublicUrl}/signin-oidc` (np. `https://vusos.example.pl/signin-oidc`).
@@ -65,7 +89,7 @@ Core projektowano dla jednego urządzenia (singletony, jedna baza). Host nie zmi
 użytkownikowi własny kontener DI** (`UserCoreFactory`, tworzony leniwie raz na identyfikator; `AddVusosCore` +
 `AddVusosAdapters`, własny `IAppPaths`, `ISecureStore`, `IConnectivity`, `AdapterOptions.UserScope`) i uruchamia w nim
 `BackgroundSyncCoordinator`. W kontenerze hosta usługi Core (`IConnectionManager`, `ISyncStatus`, `IMaterialService`,
-`IQuizService`, `IDashboardService`, `IConnectivity`, `IAppPaths`, `UsosConnectFlow`, `PlatonConnectFlow`) są *scoped
+`IQuizService`, `IDashboardService`, `IConnectivity`, `IAppPaths`, `ConnectionIdentity`, `UsosConnectFlow`, `PlatonConnectFlow`) są *scoped
 forwarderami* do kontenera bieżącego użytkownika. Identyfikator użytkownika zapamiętuje `CircuitUser` na starcie obwodu
 (z `AuthenticationStateProvider`; `HttpContext` nie jest wiarygodny po pierwszym renderze). Kilka kart tego samego
 użytkownika dzieli jeden stan. Dane są zwalniane z pamięci po `Server:UserIdleTimeout` (domyślnie 2 h) bez dostępu i bez
@@ -97,9 +121,10 @@ krótkotrwały, związany z użytkownikiem i ważny tylko dla pliku w jego `mate
 cd dotnet
 docker build -f src/Vusos.WebHost/Dockerfile -t vusos-web .
 docker run -p 8080:8080 -v vusos-data:/data \
-  -e Auth__ClientId=… -e Auth__ClientSecret=… -e Server__PublicUrl=https://vusos.example.pl \
+  -e Server__PublicUrl=https://vusos.example.pl \
   -e University__SigningServerUrl=https://vusos-server.example.pl/ vusos-web
+# opcjonalnie logowanie Entra: -e Auth__Mode=entra -e Auth__ClientId=… -e Auth__ClientSecret=…
 ```
 
-Obraz domyślnie ma `Adapters__Mode=live`, `Auth__Mode=entra`, dane w wolumenie `/data`. Do demonstracji:
-`-e Adapters__Mode=mock -e Auth__Mode=dev -e Auth__AllowDevInProduction=true`.
+Obraz domyślnie ma `Adapters__Mode=live`, `Auth__Mode=anonymous`, dane w wolumenie `/data`. Do demonstracji:
+`-e Adapters__Mode=mock` (tryb logowania `anonymous` jest domyślny; `-e Auth__Mode=dev -e Auth__AllowDevInProduction=true` tylko do testów).

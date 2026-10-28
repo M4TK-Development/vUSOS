@@ -543,5 +543,7 @@ textarea.input { resize: vertical; margin-bottom: 8px; display: block; }
 .empty-layout { min-height: 100dvh; display: grid; place-items: center; padding: max(16px, var(--safe-top)) max(16px, var(--safe-right)) max(16px, var(--safe-bottom)) max(16px, var(--safe-left)); }
 .login { width: min(420px, 100%); display: grid; gap: 12px; }
 .login-card { display: grid; gap: 14px; padding: 24px; text-align: center; }
+.login-card .expander { text-align: left; }
+.login-card .expander h2 { font-size: 1rem; margin: 12px 0 4px; }
 .brand-block { display: grid; justify-items: center; gap: 8px; }
 .auth-wait { padding: 24px; }

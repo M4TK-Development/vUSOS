@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using Vusos.Core;
 using Vusos.Core.Hosting;
 using Vusos.Core.Platform;
+using Vusos.Core.Domain;
 using Vusos.Core.Services;
 
 namespace Vusos.WebHost.Hosting;
@@ -141,6 +142,48 @@ public sealed class UserCoreFactory : IAsyncDisposable, IDisposable
             }
         }
         return victims.Count;
+    }
+
+    /// <summary>
+    /// Wylogowanie z kasowaniem danych (tryb anonymous): rozłącza USOS i Platon, usuwa tożsamość, zwalnia kontener Core
+    /// użytkownika (nawet przy otwartym obwodzie) i kasuje jego katalog <c>users/{hash}</c> (baza, materiały, secure.json).
+    /// </summary>
+    public async Task WipeAsync(string userId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(userId);
+        var hash = UserIdentity.Hash(userId);
+        Entry? entry;
+        lock (_sync) _cores.TryRemove(userId, out entry);
+
+        if (entry is { Core.IsValueCreated: true })
+        {
+            try
+            {
+                var core = entry.Core.Value;
+                var connections = core.Get<IConnectionManager>();
+                foreach (var system in new[] { SourceSystem.Usos, SourceSystem.Platon })
+                    await connections.DisconnectAsync(system).ConfigureAwait(false);
+                await core.Get<ConnectionIdentity>().ClearAsync().ConfigureAwait(false);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Rozłączanie przed usunięciem danych użytkownika {Hash} nie powiodło się", hash);
+            }
+            try { await entry.Core.Value.DisposeAsync().ConfigureAwait(false); }
+            catch (Exception ex) { _logger.LogWarning(ex, "Błąd przy zwalnianiu danych użytkownika {Hash}", hash); }
+        }
+
+        var dir = Path.Combine(_storage.RootFullPath, "users", hash);
+        try
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools(); // zwalnia uchwyty pliku bazy (Windows) przed kasowaniem
+            if (Directory.Exists(dir)) Directory.Delete(dir, recursive: true);
+            _logger.LogInformation("Usunięto dane użytkownika {Hash}", hash);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Nie udało się usunąć katalogu danych użytkownika {Hash}", hash);
+        }
     }
 
     private UserCore Create(string userId)

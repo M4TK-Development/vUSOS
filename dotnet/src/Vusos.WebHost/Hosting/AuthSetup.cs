@@ -10,7 +10,10 @@ using Vusos.Core.Services;
 
 namespace Vusos.WebHost.Hosting;
 
-/// <summary>Uwierzytelnianie WebHost: cookie + (Auth:Mode=entra) OpenID Connect albo (Auth:Mode=dev) logowanie e-mailem.</summary>
+/// <summary>
+/// Uwierzytelnianie WebHost: domyślnie anonimowe cookie sesji (Auth:Mode=anonymous, tożsamość z połączeń z USOS/Platonem),
+/// opcjonalnie cookie + OpenID Connect (Auth:Mode=entra) albo logowanie e-mailem (Auth:Mode=dev).
+/// </summary>
 public static partial class AuthSetup
 {
     public const string CookieName = "vusos.auth";
@@ -28,8 +31,8 @@ public static partial class AuthSetup
     public static IServiceCollection AddVusosAuth(this IServiceCollection services, IConfiguration configuration, IHostEnvironment environment)
     {
         var auth = ReadOptions(configuration);
-        if (!auth.IsDev && !auth.IsEntra)
-            throw new InvalidOperationException($"Nieznany Auth:Mode '{auth.Mode}' (dozwolone: dev, entra).");
+        if (!auth.IsAnonymous && !auth.IsDev && !auth.IsEntra)
+            throw new InvalidOperationException($"Nieznany Auth:Mode '{auth.Mode}' (dozwolone: anonymous, dev, entra).");
         if (auth.IsDev && !(environment.IsDevelopment() || environment.EnvironmentName == "Testing") && !auth.AllowDevInProduction)
             throw new InvalidOperationException(
                 "Auth:Mode=dev pozwala zalogować się dowolnym adresem e-mail, więc jest dostępny tylko w środowisku Development. " +
@@ -38,6 +41,7 @@ public static partial class AuthSetup
         services.AddOptions<AuthOptions>().Bind(configuration.GetSection("Auth"));
         services.AddHttpContextAccessor();
         services.AddAuthorization();
+        services.AddSingleton<AnonymousSessions>();
 
         var builder = services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
             .AddCookie(CookieAuthenticationDefaults.AuthenticationScheme, o =>
@@ -169,6 +173,10 @@ public static partial class AuthSetup
             await next();
         });
     }
+
+    /// <summary>Włącza <c>UseAnonymousSessions</c> tylko w trybie anonymous (wołać po UseAuthentication, przed UseLoginRedirect).</summary>
+    public static IApplicationBuilder UseVusosAuthMode(this IApplicationBuilder app, IConfiguration configuration)
+        => ReadOptions(configuration).IsAnonymous ? app.UseAnonymousSessions() : app;
 
     private static readonly string[] OpenPrefixes =
         ["/logowanie", "/dev-logowanie", "/auth/", "/signin-oidc", "/signout-callback-oidc", "/connect/", "/dl/",

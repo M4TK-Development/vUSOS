@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Server.Circuits;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Vusos.Core.Hosting;
@@ -47,9 +48,31 @@ public static class WebCoreRegistration
         services.AddScoped<UsosConnectFlow>(Forward<UsosConnectFlow>);
         services.AddScoped<PlatonConnectFlow>(Forward<PlatonConnectFlow>);
         services.AddScoped<IConnectFlows, WebConnectFlows>();
+        services.AddScoped<ConnectionIdentity>(Forward<ConnectionIdentity>);
+
+        if (AuthSetup.ReadOptions(configuration).IsAnonymous)
+        {
+            // Bez Entra: „zalogowany” = połączony z USOS/Platonem; tożsamość z ConnectionIdentity bieżącego użytkownika (cookie sesji).
+            services.AddScoped<ISignOutHandler, WebSignOutHandler>();
+            services.AddScoped<ConnectionAuthSession>();
+            services.Replace(ServiceDescriptor.Scoped<IAuthSession>(sp => sp.GetRequiredService<ConnectionAuthSession>()));
+        }
         return services;
     }
 
     private static T Forward<T>(IServiceProvider sp) where T : notnull
         => sp.GetRequiredService<ICurrentUserCore>().Services.GetRequiredService<T>();
+}
+
+/// <summary>
+/// Wylogowanie w trybie anonymous: przeładowanie na <c>/auth/logout</c>, gdzie serwer rozłącza USOS i Platon, kasuje katalog danych
+/// użytkownika i cookie sesji (po stronie obwodu nie ma nic do zrobienia – obwód i tak jest zamykany przez przeładowanie).
+/// </summary>
+public sealed class WebSignOutHandler(NavigationManager navigation) : ISignOutHandler
+{
+    public Task SignOutAsync()
+    {
+        navigation.NavigateTo("/auth/logout", forceLoad: true);
+        return Task.CompletedTask;
+    }
 }

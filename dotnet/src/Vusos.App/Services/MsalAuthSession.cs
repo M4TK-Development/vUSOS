@@ -10,10 +10,11 @@ using Vusos.UI.Services;
 namespace Vusos.App.Services;
 
 /// <summary>
-/// Logowanie kontem M365 uczelni (MSAL.NET, publiczny klient, przeglądarka systemowa). Aplikacja nie woła żadnego API
-/// z tokenem – potrzebuje tylko tożsamości (e-mail/nazwa z ID tokenu), więc profil zapisujemy w <see cref="ISecureStore"/>
-/// i aplikacja po restarcie (także offline) jest od razu „zalogowana”. Bez <c>University:EntraClientId</c> działa lokalne
-/// logowanie demonstracyjne (tryb mock).
+/// OPCJONALNE logowanie kontem M365 uczelni (MSAL.NET, publiczny klient, przeglądarka systemowa), rejestrowane w MauiProgram
+/// tylko gdy skonfigurowano <c>University:EntraClientId</c> (wymaga rejestracji aplikacji w Entra ID, a w tenancie uczelni
+/// zgody administratora). Domyślnie aplikacja używa <see cref="Vusos.UI.Services.ConnectionAuthSession"/> – tożsamości z połączeń
+/// z USOS/Platonem. Aplikacja nie woła żadnego API z tokenem – potrzebuje tylko tożsamości (e-mail/nazwa z ID tokenu), więc profil
+/// zapisujemy w <see cref="ISecureStore"/> i aplikacja po restarcie (także offline) jest od razu „zalogowana”.
 /// </summary>
 public sealed class MsalAuthSession : IAuthSession
 {
@@ -21,7 +22,6 @@ public sealed class MsalAuthSession : IAuthSession
     private const string EmailKey = "vusos.auth.email";
     private const string ModeKey = "vusos.auth.mode";
     private const string ModeMsal = "msal";
-    private const string ModeDemo = "demo";
 
     private static readonly string[] Scopes = ["openid", "profile", "email", "User.Read"];
 
@@ -59,7 +59,7 @@ public sealed class MsalAuthSession : IAuthSession
     public string? Email { get; private set; }
     public event Action? Changed;
 
-    private bool UseMsal => !string.IsNullOrWhiteSpace(_university.EntraClientId);
+    public bool SupportsExternalIdentityProvider => true;
 
     /// <summary>Odtwarza profil z magazynu. Bezpieczne do wielokrotnego wołania.</summary>
     public Task InitializeAsync() => _initialization ??= LoadProfileAsync();
@@ -72,10 +72,10 @@ public sealed class MsalAuthSession : IAuthSession
             var email = await _store.GetAsync(EmailKey).ConfigureAwait(false);
             var name = await _store.GetAsync(NameKey).ConfigureAwait(false);
 
-            var expectedMode = UseMsal ? ModeMsal : ModeDemo;
-            if (string.IsNullOrEmpty(email) || mode != expectedMode)
+            // Profil zapisany wcześniej w trybie „demo” (usunięty) albo przez inną metodę logowania jest ignorowany.
+            if (string.IsNullOrEmpty(email) || mode != ModeMsal)
                 return;
-            if (mode == ModeMsal && !IsAllowedDomain(email))
+            if (!IsAllowedDomain(email))
                 return; // konfiguracja domen zmieniła się od ostatniego logowania
 
             DisplayName = string.IsNullOrWhiteSpace(name) ? FormatName(email) : name;
@@ -95,13 +95,6 @@ public sealed class MsalAuthSession : IAuthSession
         await _gate.WaitAsync().ConfigureAwait(false);
         try
         {
-            if (!UseMsal)
-            {
-                var domain = _university.AllowedEmailDomains.FirstOrDefault() ?? "stu.vistula.edu.pl";
-                await CompleteSignInAsync("Student Demo", "demo@" + domain, ModeDemo).ConfigureAwait(false);
-                return;
-            }
-
             AuthenticationResult result;
             try
             {
@@ -234,8 +227,6 @@ public sealed class MsalAuthSession : IAuthSession
 
     private async Task RemoveMsalAccountsAsync()
     {
-        if (!UseMsal)
-            return;
         try
         {
             var pca = GetClient();

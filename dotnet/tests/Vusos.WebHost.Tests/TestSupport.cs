@@ -18,12 +18,12 @@ public sealed class WebHostFactory : WebApplicationFactory<Program>
         _settings = new Dictionary<string, string>
         {
             ["Adapters:Mode"] = adapters,
-            ["Auth:Mode"] = auth,
             ["Storage:Root"] = StorageRoot,
             ["Server:RedirectToHttps"] = "false",
             ["Server:SweepInterval"] = "00:00:00",
             ["Server:PublicUrl"] = "https://vusos.test",
         };
+        if (!string.IsNullOrEmpty(auth)) _settings["Auth:Mode"] = auth; // "" = zostaw domyślną z appsettings.json
         if (extra is not null) foreach (var (k, v) in extra) _settings[k] = v;
     }
 
@@ -53,11 +53,13 @@ public sealed class WebHostFactory : WebApplicationFactory<Program>
     }
 
     /// <summary>Zakres jak obwód Blazora: stan uwierzytelnienia ustawiony tak, jak robi to fabryka obwodów.</summary>
-    public IServiceScope CircuitScope(string email)
+    public IServiceScope CircuitScope(string email) => CircuitScope(AuthSetup.CreateDevPrincipal(email));
+
+    public IServiceScope CircuitScope(System.Security.Claims.ClaimsPrincipal principal)
     {
         var scope = Services.CreateScope();
         var provider = (IHostEnvironmentAuthenticationStateProvider)scope.ServiceProvider.GetRequiredService<AuthenticationStateProvider>();
-        provider.SetAuthenticationState(Task.FromResult(new AuthenticationState(AuthSetup.CreateDevPrincipal(email))));
+        provider.SetAuthenticationState(Task.FromResult(new AuthenticationState(principal)));
         return scope;
     }
 

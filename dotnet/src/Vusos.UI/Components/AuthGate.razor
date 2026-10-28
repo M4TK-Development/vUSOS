@@ -2,7 +2,7 @@
 @inject IAuthSession Auth
 @inject NavigationManager Nav
 
-@if (Auth.IsSignedIn)
+@if (_ready && (Auth.IsSignedIn || IsOpenWhileSignedOut()))
 {
     @ChildContent
 }
@@ -12,24 +12,64 @@ else
 }
 
 @code {
+    /// <summary>Strony dostępne bez zalogowania: tam użytkownik łączy systemy uczelni (to właśnie go loguje).</summary>
+    private static readonly string[] OpenPaths = ["ustawienia"];
+    private const string LoginPath = "logowanie";
+
     [Parameter] public RenderFragment? ChildContent { get; set; }
 
-    protected override void OnInitialized()
+    private bool _ready;
+    private bool _wasSignedIn;
+
+    protected override async Task OnInitializedAsync()
     {
         Auth.Changed += OnChanged;
+        Nav.LocationChanged += OnLocation;
+        await Auth.InitializeAsync();
+        _ready = true;
+        _wasSignedIn = Auth.IsSignedIn;
         RedirectIfNeeded();
     }
 
     private void OnChanged() => _ = InvokeAsync(() =>
     {
+        // Utrata sesji (wylogowanie, rozłączenie ostatniego systemu) zawsze kończy na ekranie logowania.
+        var lostSession = _wasSignedIn && !Auth.IsSignedIn;
+        _wasSignedIn = Auth.IsSignedIn;
+        RedirectIfNeeded(force: lostSession);
+        StateHasChanged();
+    });
+
+    private void OnLocation(object? sender, LocationChangedEventArgs e) => _ = InvokeAsync(() =>
+    {
         RedirectIfNeeded();
         StateHasChanged();
     });
 
-    private void RedirectIfNeeded()
+    private void RedirectIfNeeded(bool force = false)
     {
-        if (!Auth.IsSignedIn) Nav.NavigateTo("/logowanie", replace: true);
+        if (!_ready || Auth.IsSignedIn || CurrentPath() == LoginPath) return;
+        if (force || !IsOpenWhileSignedOut()) Nav.NavigateTo("/" + LoginPath, replace: true);
     }
 
-    public void Dispose() => Auth.Changed -= OnChanged;
+    private string CurrentPath()
+    {
+        var path = Nav.ToBaseRelativePath(Nav.Uri);
+        var end = path.IndexOfAny(['?', '#']);
+        if (end >= 0) path = path[..end];
+        return path.TrimEnd('/');
+    }
+
+    private bool IsOpenWhileSignedOut()
+    {
+        var path = CurrentPath();
+        return OpenPaths.Any(p => string.Equals(path, p, StringComparison.OrdinalIgnoreCase)
+                                  || path.StartsWith(p + "/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void Dispose()
+    {
+        Auth.Changed -= OnChanged;
+        Nav.LocationChanged -= OnLocation;
+    }
 }

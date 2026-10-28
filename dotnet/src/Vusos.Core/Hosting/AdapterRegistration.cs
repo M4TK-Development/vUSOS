@@ -46,6 +46,7 @@ public static class AdapterRegistration
         services.AddSingleton<UsosConnectFlow>();
         services.AddSingleton<PlatonConnectFlow>();
         services.AddSingleton<DeepLinkDispatcher>();
+        services.AddSingleton<ConnectionIdentity>();
         return services;
     }
 

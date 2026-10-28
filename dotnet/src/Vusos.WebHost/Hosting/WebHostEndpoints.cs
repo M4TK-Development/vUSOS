@@ -58,8 +58,19 @@ public static class WebHostEndpoints
         }).DisableAntiforgery();
 
         // Wylogowanie z aplikacji (bez wylogowania z całego Microsoft 365).
-        app.MapGet("/auth/logout", async (HttpContext http) =>
+        // anonymous: rozłącza USOS i Platon, kasuje katalog danych użytkownika i cookie sesji; Sec-Fetch-Site: cross-site
+        // (np. obrazek / link z obcej strony) tylko wylogowuje, niczego nie kasuje.
+        app.MapGet("/auth/logout", async (HttpContext http, IOptions<AuthOptions> authOptions, AnonymousSessions sessions) =>
         {
+            if (authOptions.Value.IsAnonymous)
+            {
+                var sid = sessions.TryRead(http);
+                var crossSite = string.Equals(http.Request.Headers["Sec-Fetch-Site"].ToString(), "cross-site", StringComparison.OrdinalIgnoreCase);
+                if (sid is not null && !crossSite && http.RequestServices.GetService<UserCoreFactory>() is { } cores)
+                    await cores.WipeAsync(AnonymousSessions.UserIdOf(sid));
+                sessions.Delete(http);
+                return Results.LocalRedirect("/logowanie");
+            }
             await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
             return Results.LocalRedirect("/logowanie");
         }).DisableAntiforgery();

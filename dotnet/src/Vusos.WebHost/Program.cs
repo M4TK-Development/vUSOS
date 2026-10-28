@@ -62,6 +62,7 @@ app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages:
 if (!app.Environment.IsDevelopment() && server.RedirectToHttps) app.UseHttpsRedirection();
 
 app.UseAuthentication();
+app.UseVusosAuthMode(app.Configuration); // Auth:Mode=anonymous: cookie vusos.sid → użytkownik anon:{id}
 app.UseAuthorization();
 app.UseLoginRedirect(app.Configuration);
 app.UseAntiforgery();

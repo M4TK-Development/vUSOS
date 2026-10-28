@@ -31,8 +31,11 @@ public sealed class ServerOptions
 /// <summary>Sekcja <c>Auth</c>.</summary>
 public sealed class AuthOptions
 {
-    /// <summary><c>dev</c> (logowanie adresem e-mail) albo <c>entra</c> (OpenID Connect, Microsoft Entra ID).</summary>
-    public string Mode { get; set; } = "dev";
+    /// <summary>
+    /// <c>anonymous</c> (domyślny: bez rejestracji w Entra, cookie sesji + tożsamość z połączeń z USOS/Platonem),
+    /// <c>dev</c> (logowanie adresem e-mail) albo <c>entra</c> (OpenID Connect, Microsoft Entra ID).
+    /// </summary>
+    public string Mode { get; set; } = "anonymous";
 
     public string? ClientId { get; set; }
     public string? ClientSecret { get; set; }
@@ -47,5 +50,6 @@ public sealed class AuthOptions
     public bool AllowDevInProduction { get; set; }
 
     public bool IsEntra => string.Equals(Mode, "entra", StringComparison.OrdinalIgnoreCase);
+    public bool IsAnonymous => string.Equals(Mode, "anonymous", StringComparison.OrdinalIgnoreCase);
     public bool IsDev => string.Equals(Mode, "dev", StringComparison.OrdinalIgnoreCase);
 }

@@ -13,10 +13,18 @@ Prototyp TypeScript z pierwszej iteracji leży w `reference/ts-prototype/` i jes
 
 ## Ograniczenia wyjściowe (end-user only)
 
-1. **Jeden token M365 nie otwiera USOSweb i Platona.** Entra ID jest tylko IdP; oba systemy mają własne sesje/tokeny.
-   Logowanie M365 w aplikacji (MSAL.NET, public client, multi-tenant app w tenancie M4TK) daje tożsamość i filtr
-   domeny (`*.vistula.edu.pl`). Do systemów aplikacja podłącza się osobno, po jednym kliknięciu każdy; cookie SSO Entra
-   w przeglądarce systemowej sprawia, że kolejne logowania są bezklikowe.
+1. **Jeden token M365 nie otwiera USOSweb i Platona, a student nie ma uprawnień w tenancie uczelni.** Entra ID jest tylko IdP;
+   oba systemy mają własne sesje/tokeny i same przekierowują na `login.microsoftonline.com`. Rejestracja aplikacji w Entra
+   jest dla studenta niemożliwa w tenancie uczelni (brak uprawnień administratora), a rejestracja wielotenantowa gdzie
+   indziej może zostać zablokowana przez politykę zgód tenanta uczelni. Dlatego **domyślnie nie ma żadnej rejestracji
+   aplikacji**: student loguje się kontem M365 uczelni w przeglądarce systemowej przy łączeniu Platona i/lub USOS, a
+   tożsamość (imię i nazwisko, e-mail, numer albumu) wynika z tych połączeń (`Vusos.Core.Hosting.ConnectionIdentity`:
+   profil USOS `users/user`, w razie braku USOS `core_webservice_get_site_info` Platona – bez e-maila). Aplikacja nie widzi
+   hasła ani tokenu Entra i nie potrzebuje zgody administratora. Ostatnia tożsamość jest zapisana w `ISecureStore`
+   (`vusos.identity`), więc aplikacja otwiera się zalogowana także offline. Opcjonalnie, gdy ktoś dysponuje rejestracją
+   (`University:EntraClientId`), działa logowanie MSAL.NET (public client, multi-tenant, filtr domeny `*.vistula.edu.pl`) –
+   `IAuthSession.SupportsExternalIdentityProvider = true`, a strona logowania pokazuje wtedy przycisk „Zaloguj kontem
+   uczelni (M365)”. Cookie SSO Entra w przeglądarce systemowej sprawia, że kolejne logowania do drugiego systemu są bezklikowe.
 2. **USOS, tryb preferowany: USOS API (OAuth 1.0a)**, metody `users/user`, `tt/user`, `grades/terms2`,
    `payments/user_payments`, `courses/user`, `terms/search`, `mailclient/*`, `news/*`, `fac/faculty`. Consumer key
    rejestruje się samoobsługowo na `/developers/` instalacji. Podpisywanie HMAC-SHA1 wymaga consumer secret, więc
@@ -53,7 +61,7 @@ Prototyp TypeScript z pierwszej iteracji leży w `reference/ts-prototype/` i jes
 dotnet/src/Vusos.Core      domena, adaptery (USOS api/web/mock, Platon ws/web/mock), cache, materiały, testy offline,
                            agregacja dashboardu; zależności: Microsoft.Data.Sqlite, AngleSharp. Zero UI, zero MAUI.
 dotnet/src/Vusos.UI        Razor Class Library: wszystkie strony i komponenty (Blazor), PL, responsywne.
-dotnet/src/Vusos.App       .NET MAUI Blazor Hybrid: iOS/Android/Windows/macOS; deep link vusos://, MSAL, SecureStorage.
+dotnet/src/Vusos.App       .NET MAUI Blazor Hybrid: iOS/Android/Windows/macOS; deep link vusos://, SecureStorage, MSAL (opcjonalnie).
 dotnet/src/Vusos.WebHost   Blazor Server hostujący Vusos.UI w przeglądarce (poświadczenia per circuit, cache per użytkownik).
 dotnet/src/Vusos.Server    ASP.NET Core minimal API: OAuth 1.0a USOS (request/access token, proxy podpisujący).
 dotnet/tests/*             xUnit; fixture'y JSON/HTML skopiowane z reference/ts-prototype.
@@ -71,6 +79,7 @@ Adapters/Platon/   IMoodleTransport (WsTransport, AjaxTransport), PlatonFunction
 Offline/           ICacheStore/IMaterialStore/IQuizOfflineStore (kontrakty) + SqliteStores (implementacja)
 Services/          IConnectionManager, ISyncStatus, IMaterialService, IQuizService, IDashboardService (kontrakty),
                    CachedUsosAdapter / CachedPlatonAdapter (dekoratory stale-while-revalidate), implementacje
+Hosting/           UsosConnectFlow, PlatonConnectFlow, DeepLinkDispatcher, ConnectionIdentity (tożsamość z połączeń)
 Platform/          ISecureStore, IConnectivity, IAppPaths, IClock (implementacje w App / WebHost)
 DependencyInjection.cs   AddVusosCore(IServiceCollection, Action<UniversityOptions>, Action<CacheOptions>)
 ```
@@ -89,8 +98,15 @@ Rate limiting per IP. Serwer nie przechowuje tokenów użytkowników.
 
 ## Przepływy w kliencie natywnym
 
-- **Logowanie**: MSAL.NET `AcquireTokenInteractive` (systemowa przeglądarka, redirect `msauth`/`vusos://auth`),
-  weryfikacja `tid`/domeny e-mail, profil zapisany lokalnie. Brak własnego serwera tożsamości.
+- **Logowanie (domyślnie, bez Entra)**: ekran logowania ma dwa przyciski, „Zaloguj przez Platon” i „Zaloguj przez USOS”
+  (oba konto M365 uczelni). Każdy uruchamia ten sam przepływ co „Połącz” w Ustawieniach (przeglądarka systemowa →
+  deep link `vusos://…`), a po udanym połączeniu `ConnectionIdentity` odczytuje profil, `IAuthSession` (`ConnectionAuthSession`)
+  zgłasza zalogowanie i aplikacja przechodzi do `/`. Do czasu połączenia dostępne są tylko `/logowanie` i `/ustawienia`.
+  Zapasowo: wklejenie tokenu Platona albo cookies. „Wyloguj” = rozłączenie USOS i Platona + usunięcie tożsamości, cache i
+  pobranych materiałów. Tryb `Adapters:Mode=mock` łączy się sam, więc tożsamością jest profil mock (nie ma wbudowanego „użytkownika demo”).
+- **Logowanie (opcjonalnie, MSAL)**: gdy ustawiono `University:EntraClientId`: MSAL.NET `AcquireTokenInteractive`
+  (systemowa przeglądarka, redirect `msauth`/`vusos://auth`), weryfikacja `tid`/domeny e-mail, profil zapisany lokalnie.
+  Brak własnego serwera tożsamości.
 - **USOS**: `request_token` (przez Vusos.Server lub lokalnie) → przeglądarka systemowa `services/oauth/authorize`
   → callback `vusos://usos?oauth_token=…&oauth_verifier=…` (USOS API dopuszcza callback z własnym schematem; w razie
   problemów Vusos.Server wystawia `/usos/oauth/callback` i przekierowuje na `vusos://`) → `access_token`
@@ -110,7 +126,8 @@ Rate limiting per IP. Serwer nie przechowuje tokenów użytkowników.
 ```
 University:Name, UsosApiBaseUrl, UsoswebBaseUrl, PlatonBaseUrl, NativeScheme=vusos,
 University:SigningServerUrl | University:UsosConsumerKey + UsosConsumerSecret,
-University:EntraClientId, EntraAuthority=https://login.microsoftonline.com/organizations, AllowedEmailDomains
+University:EntraClientId (OPCJONALNE: puste = tożsamość z połączeń USOS/Platon, bez MSAL), EntraAuthority=https://login.microsoftonline.com/organizations, AllowedEmailDomains
+Auth:Mode=anonymous|dev|entra (WebHost; domyślnie anonymous)
 Cache:FreshFor=00:02:00, ServeStaleUpTo=90.00:00:00, LiveTimeout=00:00:12, DownloadOnlyOnUnmetered=false
 Adapters:Mode=mock|live
 ```
@@ -127,8 +144,11 @@ Core zaprojektowano dla jednego użytkownika na urządzeniu (singletony, jedna b
 **osobny kontener Core per użytkownik** (`UserCoreFactory`): własny katalog `{Storage:Root}/users/{hash}` z bazą i
 materiałami, `ISecureStore` szyfrowany Data Protection (purpose per użytkownik), `AdapterOptions.UserScope` = hash.
 Serwisy w głównym kontenerze to scoped forwardery do kontenera bieżącego użytkownika (`CircuitUser` z
-`AuthenticationStateProvider`). Nieużywane kontenery są zwalniane po 2 h bezczynności. Logowanie: cookie + OIDC Entra
-(`Auth:Mode=entra`) albo formularz dev (`Auth:Mode=dev`, blokowany poza Development).
+`AuthenticationStateProvider`). Nieużywane kontenery są zwalniane po 2 h bezczynności. Logowanie (`Auth:Mode`):
+**`anonymous` (domyślny, bez rejestracji w Entra)** – pierwsza wizyta dostaje podpisane (Data Protection), HttpOnly cookie
+`vusos.sid` z losowym 32-bajtowym identyfikatorem, użytkownik to `anon:{id}`, a „zalogowany” znaczy „połączony z USOS/Platonem”
+(`ConnectionAuthSession` nad `ConnectionIdentity` kontenera użytkownika); wylogowanie rozłącza oba systemy, kasuje katalog
+danych i cookie. Opcjonalnie cookie + OIDC Entra (`entra`) albo formularz dev (`dev`, blokowany poza Development).
 
 ## Co trzeba zweryfikować na żywo
 

@@ -20,7 +20,7 @@ ENV ASPNETCORE_URLS=http://+:8080 \
     DOTNET_EnableDiagnostics=0 \
     Storage__Root=/data \
     Adapters__Mode=live \
-    Auth__Mode=entra \
+    Auth__Mode=anonymous \
     Server__RedirectToHttps=false \
     Server__UseForwardedHeaders=true
 VOLUME /data

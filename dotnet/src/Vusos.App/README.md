@@ -2,7 +2,7 @@
 
 Jedna baza kodu C#/Razor dla **iOS**, **Androida** (telefon i tablet), **Windows** i **macOS** (Mac Catalyst).
 Cały interfejs pochodzi z `Vusos.UI` (Razor Class Library), logika z `Vusos.Core`; ten projekt dokłada tylko to, co
-zależy od platformy: SecureStorage, łączność, ścieżki, otwieranie plików/przeglądarki, logowanie MSAL i deep linki `vusos://`.
+zależy od platformy: SecureStorage, łączność, ścieżki, otwieranie plików/przeglądarki, opcjonalne logowanie MSAL i deep linki `vusos://`.
 
 > **Ten projekt nie buduje się na Linuksie** (brak workloadu MAUI, Android SDK i Xcode) i dlatego **nie ma go w `Vusos.Linux.slnf`**.
 > Jest w `Vusos.slnx`. Na Linuksie `dotnet build Vusos.slnx` zakończy się błędem workloadu – używaj `Vusos.Linux.slnf`.
@@ -16,7 +16,7 @@ App.xaml(.cs), MainPage.xaml(.cs)   BlazorWebView -> Components/Routes.razor -> 
 Components/Routes.razor   korzeń Blazora; pokazuje toasty po deep linkach (ToastService jest zakresowy dla WebView)
 wwwroot/index.html        strona hosta (viewport-fit=cover, _content/Vusos.UI/css/app.css, js/vusos.js, blazor.webview.js)
 Services/                 MauiSecureStore, MauiConnectivity, MauiAppPaths, MauiExternalOpener, MauiConnectFlows,
-                          MsalAuthSession, DeepLinkRouter
+                          MsalAuthSession (opcjonalny), DeepLinkRouter
 Resources/Raw/appsettings.json   domyślna konfiguracja (Adapters:Mode=mock)
 Platforms/<os>/           punkty wejścia i manifesty (Intent filter, Info.plist, Package.appxmanifest, ...)
 ```
@@ -56,8 +56,26 @@ dotnet build src/Vusos.App -f net10.0-maccatalyst -t:Run
 dotnet build src/Vusos.App -f net10.0-windows10.0.19041.0
 ```
 
-Tryb domyślny to **mock** (`Adapters:Mode=mock`): aplikacja działa bez dostępu do uczelni, z danymi demonstracyjnymi, a bez
-`EntraClientId` logowanie M365 zastępuje lokalne konto „Student Demo”. Wylogowanie czyści cache, materiały i poświadczenia.
+Tryb domyślny to **mock** (`Adapters:Mode=mock`): aplikacja działa bez dostępu do uczelni, z danymi demonstracyjnymi.
+Mock łączy oba systemy sam, więc tożsamością jest profil z adaptera mock (przez `ConnectionIdentity`, bez wbudowanego „użytkownika demo”).
+Wylogowanie rozłącza USOS i Platon oraz czyści tożsamość, cache, materiały i poświadczenia.
+
+## Logowanie: domyślnie bez rejestracji w Entra ID
+
+Student nie ma uprawnień administratora w tenancie uczelni, a rejestracja wielotenantowa gdzie indziej może zostać zablokowana
+przez politykę zgód tenanta. Dlatego **domyślnie (puste `University:EntraClientId`) aplikacja nie używa MSAL**:
+
+- ekran logowania ma przyciski „Zaloguj przez Platon (konto M365 uczelni)” i „Zaloguj przez USOS (konto M365 uczelni)”; oba
+  otwierają przeglądarkę systemową na stronie uczelni, która sama przekierowuje na `login.microsoftonline.com` (aplikacja nie widzi
+  hasła, zgoda administratora niepotrzebna); powrót deep linkiem `vusos://…`;
+- tożsamość (imię i nazwisko, e-mail, numer albumu z USOS; z samego Platona tylko imię i nazwisko) ustala `ConnectionIdentity`
+  (`Vusos.Core.Hosting`) i zapisuje w `ISecureStore` pod `vusos.identity`, więc aplikacja otwiera się zalogowana także offline;
+- zapasowo: wklejenie tokenu Platona albo cookies (te same formularze co w Ustawieniach);
+- DI (`MauiProgram`): `AddVusosConnectionAuth()` → `ConnectionAuthSession` (`SupportsExternalIdentityProvider = false`);
+- do czasu połączenia dostępne są tylko `/logowanie` i `/ustawienia`.
+
+**MSAL jest trybem opcjonalnym**: gdy ustawisz `University:EntraClientId`, rejestrowany jest `MsalAuthSession`
+(`SupportsExternalIdentityProvider = true`; przycisk „Zaloguj kontem uczelni (M365)”, patrz „Rejestracja aplikacji w Entra ID” niżej).
 
 ## Konfiguracja
 
@@ -70,7 +88,7 @@ Najważniejsze klucze:
 | Klucz | Znaczenie |
 |---|---|
 | `Adapters:Mode` | `mock` (domyślnie) albo `live` |
-| `University:EntraClientId` | Application (client) ID aplikacji z Entra ID; puste = logowanie demo |
+| `University:EntraClientId` | OPCJONALNE: Application (client) ID z Entra ID. Puste (domyślnie) = tożsamość z połączeń USOS/Platon, bez MSAL |
 | `University:EntraAuthority` | domyślnie `https://login.microsoftonline.com/organizations` |
 | `University:AllowedEmailDomains` | dozwolone domeny e-mail po zalogowaniu (dokładne dopasowanie) |
 | `University:SigningServerUrl` | adres `Vusos.Server` podpisującego OAuth 1.0a USOS (zalecane; aplikacja nie zawiera consumer secret) |
@@ -79,9 +97,10 @@ Najważniejsze klucze:
 | `University:NativeScheme` | schemat deep linków (`vusos`); musi zgadzać się z manifestami platform |
 | `App:AllowInsecureSecureStoreFallback` | `true`/`false`; zapasowy, **nieszyfrowany** magazyn, gdy SecureStorage nie działa (domyślnie tylko w Debug) |
 
-Tryb produkcyjny (przykład): `"Adapters": { "Mode": "live" }`, `"University": { "SigningServerUrl": "https://vusos.example.com/", "EntraClientId": "<GUID>" }`.
+Tryb produkcyjny (przykład): `"Adapters": { "Mode": "live" }`, `"University": { "SigningServerUrl": "https://vusos.example.com/" }`
+(`"EntraClientId": "<GUID>"` tylko jeśli masz rejestrację i chcesz logowanie MSAL).
 
-### Rejestracja aplikacji w Entra ID (klient publiczny)
+### Rejestracja aplikacji w Entra ID (klient publiczny) – OPCJONALNA
 
 1. portal.azure.com (lub entra.microsoft.com) -> **Microsoft Entra ID -> App registrations -> New registration**.
 2. Nazwa: `vUSOS`. **Supported account types: „Accounts in any organizational directory (Any Microsoft Entra ID tenant – Multitenant)”**
@@ -126,9 +145,10 @@ iOS symulator: `xcrun simctl openurl booted "vusos://..."`; macOS: `open "vusos:
 - Poświadczenia USOS/Platon i profil użytkownika: `SecureStorage` (Keychain / Keystore / DPAPI). Zapasowy magazyn `Preferences` jest **nieszyfrowany**
   i domyślnie włączony tylko w Debug (emulatory bez blokady ekranu / symulator iOS bez Keychain).
 - Android: `allowBackup=false` (tokeny nie trafiają do kopii zapasowych).
-- Logowanie M365 w przeglądarce systemowej; hasła uczelni nigdy nie trafiają do aplikacji.
-- Weryfikacja domeny e-mail jest po stronie klienta (aplikacja bez własnego serwera tożsamości) – to bramka UX, nie granica bezpieczeństwa;
-  dane i tak chroni logowanie do USOS/Platona.
+- Logowanie M365 w przeglądarce systemowej (na stronach USOS/Platona albo przez MSAL); hasła uczelni nigdy nie trafiają do aplikacji.
+- Tożsamość z połączeń to nazwa i e-mail zwrócone przez USOS/Platon po zalogowaniu kontem uczelni; nie jest niezależnym dowodem tożsamości
+  (nie ma tokenu Entra), ale dane i tak chroni logowanie do USOS/Platona. W trybie MSAL weryfikacja domeny e-mail jest po stronie klienta
+  – to bramka UX, nie granica bezpieczeństwa.
 
 ## Znane punkty do sprawdzenia przy pierwszej kompilacji (`TODO(compile-check)`)
 
@@ -136,7 +156,9 @@ Kod powstał bez możliwości kompilacji MAUI, więc te miejsca mogą wymagać d
 
 - `Vusos.App.csproj`: właściwość `CodesignEntitlements` (iOS/Mac Catalyst); wersja `Microsoft.Identity.Client` 4.66.2 (dla zasobów net6.0-android31.0 / net6.0-ios15.4; można podnieść do nowszej).
   Dla `net10.0-maccatalyst` i Windows NuGet wybiera zasób `net6.0` pakietu MSAL (sprawdzone narzędziem NuGet.Frameworks dla 4.66.2).
-- `Services/MsalAuthSession.cs`: `WithParentActivityOrWindow(Platform.CurrentActivity / GetCurrentUIViewController())`, `WithSystemWebViewOptions`
+- `MauiProgram.cs` + `Vusos.UI` (`ConnectionAuthSession`, `LocalDataSignOutHandler`, `AddVusosConnectionAuth`): część UI/Core kompiluje się i jest testowana na Linuksie;
+  w App sprawdź tylko rejestrację DI (wybór MSAL vs `AddVusosConnectionAuth` po `University:EntraClientId`) i wywołanie `IAuthSession.InitializeAsync()` po `Build()`.
+- `Services/MsalAuthSession.cs` (tylko gdy `EntraClientId` ustawione): `WithParentActivityOrWindow(Platform.CurrentActivity / GetCurrentUIViewController())`, `WithSystemWebViewOptions`
   (gałąź Windows/Mac), `MsalError.AuthenticationCanceledError`, `AuthenticationResult.ClaimsPrincipal`. Część niezależna od platformy kompiluje się z MSAL 4.66.2 (sprawdzone osobno).
 - `Services/MauiExternalOpener.cs`: `Launcher.Default.OpenAsync(OpenFileRequest)` + `ReadOnlyFile`.
 - `Platforms/Android/MainActivity.cs`: sygnatura `OnActivityResult` i `AuthenticationContinuationHelper.SetAuthenticationContinuationEventArgs(int, Result, Intent)`.

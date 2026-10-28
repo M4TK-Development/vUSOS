@@ -50,16 +50,28 @@ public static class MauiProgram
         // ---- Usługi hosta wymagane przez Vusos.UI ----
         builder.Services.AddSingleton<IExternalOpener, MauiExternalOpener>();
         builder.Services.AddSingleton<IConnectFlows, MauiConnectFlows>();
-        builder.Services.AddSingleton<MsalAuthSession>();
-        builder.Services.AddSingleton<IAuthSession>(sp => sp.GetRequiredService<MsalAuthSession>());
+
+        // ---- Sesja użytkownika ----
+        // Domyślnie bez rejestracji aplikacji w Entra ID: tożsamość z połączeń z USOS/Platonem (student loguje się kontem M365
+        // uczelni w przeglądarce systemowej na ich stronach). MSAL tylko gdy skonfigurowano University:EntraClientId.
+        var useMsal = !string.IsNullOrWhiteSpace(configuration["University:EntraClientId"]);
+        if (useMsal)
+        {
+            builder.Services.AddSingleton<MsalAuthSession>();
+            builder.Services.AddSingleton<IAuthSession>(sp => sp.GetRequiredService<MsalAuthSession>());
+        }
+        else
+        {
+            builder.Services.AddVusosConnectionAuth(); // ConnectionAuthSession + LocalDataSignOutHandler (Vusos.UI)
+        }
 
         var app = builder.Build();
 
         // Deep linki (vusos://...) – od tej chwili router ma dostęp do DeepLinkDispatcher; zakolejkowane linki są obsługiwane.
         DeepLinkRouter.Attach(app.Services);
 
-        // Odtworzenie profilu z ISecureStore (aplikacja otwiera się „zalogowana” także offline).
-        _ = app.Services.GetRequiredService<MsalAuthSession>().InitializeAsync();
+        // Odtworzenie tożsamości z ISecureStore (aplikacja otwiera się „zalogowana” także offline); AuthGate też woła InitializeAsync.
+        _ = app.Services.GetRequiredService<IAuthSession>().InitializeAsync();
 
         // Synchronizacja w tle po odzyskaniu sieci (kolejka testów + materiały).
         try

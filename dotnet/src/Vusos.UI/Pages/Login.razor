@@ -2,6 +2,7 @@
 @layout EmptyLayout
 @implements IDisposable
 @inject IAuthSession Auth
+@inject IConnectFlows Flows
 @inject NavigationManager Nav
 
 <PageTitle>Logowanie – vUSOS</PageTitle>
@@ -12,37 +13,84 @@
             <h1>vUSOS</h1>
         </div>
         <p class="muted">Jednolita platforma studenta: USOS i Platon w jednym miejscu – także offline.</p>
-        <button type="button" class="btn btn-primary btn-block btn-lg" @onclick="SignInAsync" disabled="@_busy">
-            <Icon Name="user" Size="18" /> @(_busy ? "Logowanie…" : "Zaloguj kontem uczelni (M365)")
-        </button>
-        @if (_error is not null) { <p class="text-danger small" role="alert">@_error</p> }
-        <p class="muted small">Logujesz się kontem Microsoft 365 uczelni (@@vistula.edu.pl). Hasła do USOS ani Platona nigdy nie trafiają do aplikacji.</p>
+
+        @if (Auth.SupportsExternalIdentityProvider)
+        {
+            <button type="button" class="btn btn-primary btn-block btn-lg" @onclick="SignInAsync" disabled="@(_busy is not null)">
+                <Icon Name="user" Size="18" /> @(_busy == "m365" ? "Logowanie…" : "Zaloguj kontem uczelni (M365)")
+            </button>
+            <p class="small center"><a href="/ustawienia">lub połącz bezpośrednio z Platonem/USOS</a></p>
+            @if (_error is not null) { <p class="text-danger small" role="alert">@_error</p> }
+            <p class="muted small">Logujesz się kontem Microsoft 365 uczelni (@@vistula.edu.pl). Hasła do USOS ani Platona nigdy nie trafiają do aplikacji.</p>
+        }
+        else
+        {
+            <button type="button" class="btn btn-primary btn-block btn-lg" @onclick="StartPlatonAsync" disabled="@(_busy is not null)">
+                <Icon Name="book" Size="18" /> @(_busy == "platon" ? "Otwieranie logowania…" : "Zaloguj przez Platon (konto M365 uczelni)")
+            </button>
+            <button type="button" class="btn btn-primary btn-block btn-lg" @onclick="StartUsosAsync" disabled="@(_busy is not null)">
+                <Icon Name="grades" Size="18" /> @(_busy == "usos" ? "Otwieranie logowania…" : "Zaloguj przez USOS (konto M365 uczelni)")
+            </button>
+            @if (_error is not null) { <p class="text-danger small" role="alert">@_error</p> }
+            @if (_info is not null) { <p class="small" role="status">@_info</p> }
+            <p class="muted small">
+                Logowanie odbywa się w przeglądarce systemowej, na stronie uczelni (konto Microsoft 365). Aplikacja nie widzi hasła
+                i nie wymaga zgody administratora. Wystarczy połączyć jeden z systemów – drugi możesz dodać później w Ustawieniach.
+            </p>
+            <Collapsible Title="Inne sposoby połączenia (token, cookies)" Open="_openFallbacks">
+                <h2>Platon</h2>
+                <ConnectForms Target="SourceSystem.Platon" />
+                <h2>USOS</h2>
+                <ConnectForms Target="SourceSystem.Usos" />
+            </Collapsible>
+        }
     </div>
     <p class="muted small center">Aplikacja nieoficjalna, niezależna od Akademii Finansów i Biznesu Vistula.</p>
 </div>
 
 @code {
-    private bool _busy;
-    private string? _error;
+    private string? _busy, _error, _info;
+    private bool _openFallbacks;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         Auth.Changed += OnChanged;
+        await Auth.InitializeAsync();
+        GoHomeIfSignedIn();
+    }
+
+    // Połączenie z USOS/Platonem (ConnectionIdentity.Changed → IAuthSession.Changed) kończy logowanie: przechodzimy do aplikacji.
+    private void OnChanged() => _ = InvokeAsync(GoHomeIfSignedIn);
+
+    private void GoHomeIfSignedIn()
+    {
         if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
     }
 
-    private void OnChanged() => _ = InvokeAsync(() =>
-    {
-        if (Auth.IsSignedIn) Nav.NavigateTo("/", replace: true);
-    });
+    private Task SignInAsync() => RunAsync("m365", Auth.SignInAsync, null, "Nie udało się zalogować: ");
 
-    private async Task SignInAsync()
+    private Task StartPlatonAsync() => RunAsync("platon", Flows.StartPlatonAsync,
+        "Dokończ logowanie do Platona w przeglądarce. Po powrocie aplikacja przejdzie dalej automatycznie.", null);
+
+    private Task StartUsosAsync() => RunAsync("usos", Flows.StartUsosAsync,
+        "Dokończ logowanie do USOS w przeglądarce. Po powrocie aplikacja przejdzie dalej automatycznie.", null);
+
+    private async Task RunAsync(string key, Func<Task> action, string? info, string? errorPrefix)
     {
-        _busy = true;
+        _busy = key;
         _error = null;
-        try { await Auth.SignInAsync(); }
-        catch (Exception e) { _error = "Nie udało się zalogować: " + e.Message; }
-        _busy = false;
+        _info = null;
+        try
+        {
+            await action();
+            _info = Auth.IsSignedIn ? null : info;
+        }
+        catch (Exception e)
+        {
+            _error = (errorPrefix ?? "") + e.Message;
+            _openFallbacks = errorPrefix is null; // host nie umie dokończyć logowania sam – pokaż wklejanie tokenu / cookies
+        }
+        _busy = null;
     }
 
     public void Dispose() => Auth.Changed -= OnChanged;
