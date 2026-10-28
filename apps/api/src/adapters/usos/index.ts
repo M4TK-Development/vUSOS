@@ -1,22 +1,30 @@
-import type { UsosAdapter, UsosCredentials } from "@vusos/shared";
+import { AdapterUnavailableError, type UsosAdapter, type UsosCredentials } from "@vusos/shared";
+import { createUsosApiAdapter } from "./api.js";
+import type { UsosAdapterDeps, UsosConfig } from "./config.js";
+import { createUsosMockAdapter } from "./mock.js";
+import { createUsosOAuthClient as createOAuthClient, type UsosOAuthClient } from "./oauth.js";
+import { createUsosWebAdapter } from "./web.js";
 
-export interface UsosConfig {
-  apiBaseUrl: string;
-  consumerKey: string;
-  consumerSecret: string;
-  usoswebBaseUrl: string;
-}
+export type { UsosConfig, UsosAdapterDeps } from "./config.js";
+export type { UsosOAuthClient } from "./oauth.js";
 
-/** Owned by the USOS adapter module. Implementation: ./api.ts (OAuth1), ./web.ts (cookies+HTML), ./mock.ts. */
-export function createUsosAdapter(_creds: UsosCredentials, _config: UsosConfig): UsosAdapter {
-  throw new Error("not implemented");
+/** Dispatches on `creds.mode`: "api" (OAuth 1.0a, ./api.ts), "web" (cookies + HTML, ./web.ts), "mock" (./mock.ts). */
+export function createUsosAdapter(creds: UsosCredentials, config: UsosConfig, deps: UsosAdapterDeps = {}): UsosAdapter {
+  switch (creds.mode) {
+    case "api":
+      return createUsosApiAdapter(creds, config, deps);
+    case "web":
+      return createUsosWebAdapter(creds, config, deps);
+    case "mock":
+      return createUsosMockAdapter(deps);
+    default: {
+      const unknownMode: never = creds;
+      throw new AdapterUnavailableError(`Nieobsługiwany tryb USOS: ${JSON.stringify(unknownMode)}`);
+    }
+  }
 }
 
 /** OAuth 1.0a helpers used by the connections routes. */
-export interface UsosOAuthClient {
-  requestToken(callbackUrl: string, scopes: string[]): Promise<{ token: string; secret: string; authorizeUrl: string }>;
-  accessToken(token: string, secret: string, verifier: string): Promise<{ token: string; secret: string }>;
-}
-export function createUsosOAuthClient(_config: UsosConfig): UsosOAuthClient {
-  throw new Error("not implemented");
+export function createUsosOAuthClient(config: UsosConfig): UsosOAuthClient {
+  return createOAuthClient(config);
 }

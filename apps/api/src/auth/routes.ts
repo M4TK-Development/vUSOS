@@ -47,14 +47,14 @@ export async function authRoutes(app: FastifyInstance, deps: AuthDeps): Promise<
   });
 
   /** Completes a login: cookie session for the web client, one-time code redirect for native clients. */
-  function completeLogin(req: FastifyRequest, reply: FastifyReply, user: UserRow, client: "web" | "native", asJson = false) {
+  function completeLogin(req: FastifyRequest, reply: FastifyReply, user: UserRow, client: "web" | "native", asJson = false, redirectStatus: 302 | 303 = 303) {
     if (client === "native") {
       const code = store.createAuthCode(user.id);
-      return reply.redirect(`${config.nativeScheme}://auth?code=${encodeURIComponent(code)}`, asJson ? 302 : 303);
+      return reply.redirect(`${config.nativeScheme}://auth?code=${encodeURIComponent(code)}`, asJson ? 302 : redirectStatus);
     }
     req.session.set("userId", user.id);
     if (asJson) return reply.send({ user: publicUser(user) });
-    return reply.redirect(config.webOrigin, 303);
+    return reply.redirect(config.webOrigin, redirectStatus);
   }
 
   app.post("/auth/logout", async (req) => {
@@ -134,6 +134,6 @@ export async function authRoutes(app: FastifyInstance, deps: AuthDeps): Promise<
       return forbidden(req, reply);
     }
     const user = store.upsertUser({ id: identity.id, email: identity.email, name: identity.name, tenantId: identity.tenantId });
-    return completeLogin(req, reply, user, client);
+    return completeLogin(req, reply, user, client, false, 302);
   });
 }

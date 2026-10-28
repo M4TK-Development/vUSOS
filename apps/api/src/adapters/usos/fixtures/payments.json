@@ -1,0 +1,13 @@
+[
+  { "id": 7001, "type": "tuition", "description": { "pl": "Czesne - rata 1/5" }, "total_amount": "1250.00", "saldo_amount": "0.00",
+    "state": "paid", "payment_deadline": "2025-10-10", "interest": "0.00", "account_number": "61109010140000071219812874" },
+  { "id": 7002, "type": "tuition", "description": { "pl": "Czesne - rata 2/5" }, "total_amount": 1250, "saldo_amount": -1250,
+    "state": "unpaid", "payment_deadline": "2025-11-10", "interest": 4.73, "account_number": "61109010140000071219812874" },
+  { "id": 7003, "type": "tuition", "description": { "pl": "Czesne - rata 3/5" }, "total_amount": 1250, "saldo_amount": -750,
+    "state": "unpaid", "payment_deadline": "2026-01-10", "interest": null, "account_number": null },
+  { "id": 7004, "type": "tuition", "description": "Czesne - rata 4/5", "total_amount": "1 250,00", "saldo_amount": "-1250,00",
+    "state": "unpaid", "payment_deadline": "2026-02-10" },
+  { "id": 7005, "type": "fee", "description": { "pl": "Legitymacja" }, "total_amount": 22, "saldo_amount": -22, "state": "cancelled", "payment_deadline": "2025-10-01" },
+  { "id": 7006, "total_amount": 100, "saldo_amount": 0, "payment_deadline": null },
+  { "broken": true }
+]

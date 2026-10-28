@@ -294,8 +294,10 @@ export function mapGrades(raw: unknown, ctx: GradeMapContext = {}): Grade[] {
     sessionKey: string
   ): void => {
     const r = RawGrade.safeParse(rawGrade);
-    if (!r.success || !r.data.value_symbol) return;
+    if (!r.success) return;
     const g = r.data;
+    const symbol = g.value_symbol;
+    if (!symbol) return;
     const sessionNum = toNumber(g.exam_session_number) ?? toNumber(sessionKey);
     const desc = g.value_description === undefined || g.value_description === null ? null : toLangText(g.value_description);
     out.push({
@@ -305,7 +307,7 @@ export function mapGrades(raw: unknown, ctx: GradeMapContext = {}): Grade[] {
       courseName: ctx.courseNames?.get(courseId) ?? { pl: courseId },
       classType: unitId ? (ctx.unitClassTypes?.get(unitId) ?? null) : null,
       examSession: sessionNum === null ? null : Math.trunc(sessionNum),
-      valueSymbol: g.value_symbol,
+      valueSymbol: symbol,
       valueDescription: desc && desc.pl !== "" ? desc : null,
       passes: g.passes ?? null,
       countsIntoAverage: parseCountsIntoAverage(g.counts_into_average),
@@ -476,4 +478,33 @@ export function mapNews(rawList: unknown): Announcement[] {
     });
   }
   return out.sort((x, y) => y.publishedAt.localeCompare(x.publishedAt));
+}
+
+// ---------- grade symbols (shared by web scraper and mock) ----------
+
+const GRADE_NAMES: Record<string, LangText> = {
+  "5.0": { pl: "bardzo dobry", en: "very good" },
+  "4.5": { pl: "dobry plus", en: "good plus" },
+  "4.0": { pl: "dobry", en: "good" },
+  "3.5": { pl: "dostateczny plus", en: "satisfactory plus" },
+  "3.0": { pl: "dostateczny", en: "satisfactory" },
+  "2.0": { pl: "niedostateczny", en: "fail" }
+};
+
+/** "4,5" -> "4.5", "5" -> "5.0", "ZAL" -> "zal"; unknown symbols are returned trimmed. */
+export function normalizeGradeSymbol(raw: string): string {
+  const s = raw.trim();
+  const n = numericGrade(s);
+  if (n !== null) return n.toFixed(1);
+  if (/^(zal\.?|zaliczone|zaliczony|zaliczenie|zal\.)$/i.test(s)) return "zal";
+  if (/^(nzal\.?|niezaliczone|niezaliczony)$/i.test(s)) return "nzal";
+  return s;
+}
+
+export function describeGrade(symbol: string): { passes: boolean | null; description: LangText | null } {
+  const n = numericGrade(symbol);
+  if (n !== null) return { passes: n >= 3, description: GRADE_NAMES[n.toFixed(1)] ?? null };
+  if (symbol === "zal") return { passes: true, description: { pl: "zaliczony", en: "passed" } };
+  if (symbol === "nzal") return { passes: false, description: { pl: "niezaliczony", en: "not passed" } };
+  return { passes: null, description: null };
 }

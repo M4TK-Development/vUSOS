@@ -1,0 +1,38 @@
+{
+  "2025Z": {
+    "INF-ALG": {
+      "course_units_grades": {
+        "5202": {
+          "1": {
+            "exam_session_number": 1,
+            "value_symbol": "4.0",
+            "value_description": { "pl": "dobry", "en": "good" },
+            "passes": true,
+            "counts_into_average": true,
+            "date_modified": "2025-11-19 12:05:00",
+            "modification_author": { "first_name": "Tomasz", "last_name": "Lis" },
+            "comment": "Kolokwium 1: 78%"
+          },
+          "2": null
+        }
+      },
+      "course_grades": {
+        "1": { "exam_session_number": 1, "value_symbol": "3.5", "value_description": { "pl": "dostateczny plus" }, "passes": true, "counts_into_average": "Y", "date_modified": "2026-02-02 10:00:00" },
+        "2": null
+      }
+    }
+  },
+  "2024L": {
+    "INF-AM2": {
+      "course_units_grades": {},
+      "course_grades": {
+        "1": { "exam_session_number": 1, "value_symbol": "2.0", "passes": false, "counts_into_average": true, "date_modified": "2025-06-20 10:10:00" },
+        "2": { "exam_session_number": 2, "value_symbol": "3.5", "passes": true, "counts_into_average": true, "date_modified": "2025-09-05 09:45:00" }
+      }
+    },
+    "INF-ANG2": {
+      "course_units_grades": [],
+      "course_grades": [ { "value_symbol": "zal", "passes": true, "counts_into_average": false } ]
+    }
+  }
+}
