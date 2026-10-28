@@ -1,0 +1,35 @@
+{
+  "attempts": [
+    {
+      "id": 50001,
+      "quiz": 9001,
+      "userid": 48213,
+      "attempt": 1,
+      "uniqueid": 50001,
+      "layout": "1,2,0",
+      "currentpage": 0,
+      "preview": 0,
+      "state": "finished",
+      "timestart": 1793000000,
+      "timefinish": 1793000900,
+      "timemodified": 1793000900,
+      "sumgrades": "5.50000"
+    },
+    {
+      "id": 50017,
+      "quiz": 9001,
+      "userid": 48213,
+      "attempt": 2,
+      "uniqueid": 50017,
+      "layout": "1,2,0",
+      "currentpage": 2,
+      "preview": 0,
+      "state": "inprogress",
+      "timestart": 1793181000,
+      "timefinish": 0,
+      "timemodified": 1793181000,
+      "sumgrades": null
+    }
+  ],
+  "warnings": []
+}

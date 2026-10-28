@@ -1,0 +1,37 @@
+{
+  "quizzes": [
+    {
+      "id": 9001,
+      "coursemodule": 410013,
+      "course": 3017,
+      "name": "Quiz: złożoność obliczeniowa",
+      "intro": "<p>Sześć pytań. @@PLUGINFILE@@/x.png</p>",
+      "introformat": 1,
+      "timeopen": 1792000000,
+      "timeclose": 1793275200,
+      "timelimit": 1200,
+      "attempts": 2,
+      "grade": 10.0,
+      "sumgrades": 7.0,
+      "allowofflineattempts": 1,
+      "hasquestions": 1,
+      "preferredbehaviour": "deferredfeedback"
+    },
+    {
+      "id": 9002,
+      "coursemodule": 410099,
+      "course": 3022,
+      "name": "Test bez limitu",
+      "intro": "",
+      "timeopen": 0,
+      "timeclose": 0,
+      "timelimit": 0,
+      "attempts": 0,
+      "grade": 20.0,
+      "sumgrades": "4.00000",
+      "allowofflineattempts": 0,
+      "hasquestions": 0
+    }
+  ],
+  "warnings": []
+}

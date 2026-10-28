@@ -114,7 +114,7 @@ public sealed record RawAttemptReview(RawQuizAttempt Attempt, JsonElement? Grade
 /// <summary>Konwersje wartości, których typ JSON bywa liczbą, napisem albo bool.</summary>
 public static class JsonLoose
 {
-    public static double? Double(JsonElement? e)
+    public static double? ToDouble(JsonElement? e)
     {
         if (e is not { } v) return null;
         switch (v.ValueKind)
@@ -128,7 +128,7 @@ public static class JsonLoose
         }
     }
 
-    public static bool Bool(JsonElement? e)
+    public static bool ToBool(JsonElement? e)
     {
         if (e is not { } v) return false;
         return v.ValueKind switch
@@ -140,7 +140,7 @@ public static class JsonLoose
         };
     }
 
-    public static string? String(JsonElement? e)
+    public static string? ToText(JsonElement? e)
     {
         if (e is not { } v) return null;
         return v.ValueKind switch

@@ -1,0 +1,20 @@
+{
+  "attempt": {
+    "id": 50017,
+    "quiz": 9001,
+    "userid": 48213,
+    "attempt": 1,
+    "uniqueid": 50017,
+    "layout": "1,2,0,3,0",
+    "currentpage": 0,
+    "preview": 0,
+    "state": "inprogress",
+    "timestart": 1793181000,
+    "timefinish": 0,
+    "timemodified": 1793181000,
+    "timemodifiedoffline": 0,
+    "timecheckstate": null,
+    "sumgrades": null
+  },
+  "warnings": []
+}
