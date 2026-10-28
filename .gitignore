@@ -9,3 +9,7 @@ data/
 *.sqlite-*
 .DS_Store
 coverage/
+bin/
+obj/
+.vs/
+TestResults/

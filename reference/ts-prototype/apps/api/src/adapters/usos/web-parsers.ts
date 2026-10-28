@@ -403,7 +403,7 @@ export function parseGradesHtml(html: string, opts: ParseOptions = {}): ParsedGr
     const cType = findCol(headers, /typ|forma|rodzaj/);
     const cSession = findCol(headers, /termin|podej|sesja/);
     const cDate = findCol(headers, /data/);
-    const cBy = findCol(headers, /wystawi|nauczyciel|prowadz/);
+    const cBy = headers.findIndex((h) => /wystawi|nauczyciel|prowadz/.test(h) && !/data/.test(h));
     const cComment = findCol(headers, /komentarz|uwagi/);
     terms.set(ctx.id, ctx.name);
     for (const { cells } of rows) {
