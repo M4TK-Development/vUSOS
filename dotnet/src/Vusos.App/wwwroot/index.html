@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="pl">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#4338ca" />
+    <title>vUSOS</title>
+    <base href="/" />
+    <link rel="stylesheet" href="_content/Vusos.UI/css/app.css" />
+    <style>
+        .app-loading { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; font-family: system-ui, sans-serif; color: #596178; }
+        .app-loading .mark { width: 56px; height: 56px; border-radius: 14px; background: #4338ca; color: #fff; display: grid; place-items: center; font-size: 30px; font-weight: 700; }
+        @media (prefers-color-scheme: dark) { .app-loading { color: #a3abc4; } }
+    </style>
+</head>
+
+<body>
+    <div id="app">
+        <div class="app-loading" role="status">
+            <div class="mark" aria-hidden="true">v</div>
+            <div>Ładowanie vUSOS…</div>
+        </div>
+    </div>
+
+    <script src="_content/Vusos.UI/js/vusos.js"></script>
+    <script src="_framework/blazor.webview.js" autostart="false"></script>
+</body>
+
+</html>

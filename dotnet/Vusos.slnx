@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/Vusos.App/Vusos.App.csproj" />
     <Project Path="src/Vusos.Core/Vusos.Core.csproj" />
     <Project Path="src/Vusos.Server/Vusos.Server.csproj" />
     <Project Path="src/Vusos.UI/Vusos.UI.csproj" />
@@ -9,5 +10,6 @@
     <Project Path="tests/Vusos.Core.Tests/Vusos.Core.Tests.csproj" />
     <Project Path="tests/Vusos.Server.Tests/Vusos.Server.Tests.csproj" />
     <Project Path="tests/Vusos.UI.Tests/Vusos.UI.Tests.csproj" />
+    <Project Path="tests/Vusos.WebHost.Tests/Vusos.WebHost.Tests.csproj" />
   </Folder>
 </Solution>

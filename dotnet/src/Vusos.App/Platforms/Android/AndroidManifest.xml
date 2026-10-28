@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+	<application android:allowBackup="false" android:icon="@mipmap/appicon" android:roundIcon="@mipmap/appicon_round" android:supportsRtl="true">
+
+		<!--
+			MSAL: odbiór przekierowania msal{clientId}://auth po logowaniu w przeglądarce.
+			TODO(config): zamień YOUR_ENTRA_CLIENT_ID na University:EntraClientId (Application (client) ID z Entra ID),
+			np. android:scheme="msal11111111-2222-3333-4444-555555555555". Bez tego logowanie M365 na Androidzie się nie zakończy.
+		-->
+		<activity android:name="microsoft.identity.client.BrowserTabActivity" android:exported="true">
+			<intent-filter>
+				<action android:name="android.intent.action.VIEW" />
+				<category android:name="android.intent.category.DEFAULT" />
+				<category android:name="android.intent.category.BROWSABLE" />
+				<data android:scheme="msalYOUR_ENTRA_CLIENT_ID" android:host="auth" />
+			</intent-filter>
+		</activity>
+	</application>
+
+	<uses-permission android:name="android.permission.INTERNET" />
+	<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+	<!-- Android 11+: widoczność przeglądarek (Custom Tabs dla Browser.OpenAsync i MSAL). -->
+	<queries>
+		<intent>
+			<action android:name="android.intent.action.VIEW" />
+			<data android:scheme="https" />
+		</intent>
+		<intent>
+			<action android:name="android.support.customtabs.action.CustomTabsService" />
+		</intent>
+	</queries>
+</manifest>

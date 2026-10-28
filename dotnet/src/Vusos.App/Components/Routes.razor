@@ -1,0 +1,15 @@
+@implements IDisposable
+@inject ToastService Toasts
+
+@* Korzeń aplikacji Blazor Hybrid: AppRouter z Vusos.UI (odpowiednik Routes.razor w Vusos.WebHost) + toasty po deep linkach. *@
+<AppRouter />
+
+@code {
+    protected override void OnInitialized() => DeepLinkRouter.Notification += OnNotification;
+
+    // Zdarzenie przychodzi z wątku głównego MAUI, ale ToastService jest zakresowy dla tego BlazorWebView – wracamy na dyspozytora Blazora.
+    private void OnNotification(string message, ToastKind kind) =>
+        _ = InvokeAsync(() => Toasts.Show(message, kind));
+
+    public void Dispose() => DeepLinkRouter.Notification -= OnNotification;
+}
