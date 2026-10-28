@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.AspNetCore.StaticFiles;
-using Vusos.Core.Platform;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 using Vusos.UI.Services;
 using Vusos.WebHost.Components;
 using Vusos.WebHost.Dev;
@@ -8,23 +8,50 @@ using Vusos.WebHost.Hosting;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Tryby Adapters:Mode: "fake" (dane w pamięci, bez Core), "mock" (prawdziwy Core + adaptery mock; domyślny), "live" (USOS/Platon).
+var adapterMode = (builder.Configuration["Adapters:Mode"] ?? "mock").ToLowerInvariant();
+if (adapterMode is not ("fake" or "mock" or "live"))
+    throw new InvalidOperationException($"Nieznany Adapters:Mode '{adapterMode}' (dozwolone: fake, mock, live).");
+
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
+// Klucze Data Protection (cookie sesji, tokeny /dl, szyfrowanie ISecureStore) w {Storage:Root}/keys – przetrwają restart.
+var storage = builder.Configuration.GetSection("Storage").Get<StorageOptions>() ?? new StorageOptions();
+builder.Services.AddDataProtection()
+    .SetApplicationName("vusos-webhost")
+    .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(storage.RootFullPath, "keys")));
+
+builder.Services.AddVusosAuth(builder.Configuration, builder.Environment);
+
 // UI (Vusos.UI) + usługi hosta
 builder.Services.AddVusosUi();
-builder.Services.AddScoped<DevAuthSession>();
-builder.Services.AddScoped<IAuthSession>(sp => sp.GetRequiredService<DevAuthSession>());
-builder.Services.AddScoped<IExternalOpener, JsExternalOpener>();
+builder.Services.AddVusosWebHostCommon(builder.Configuration);
 
-if (builder.Configuration["Adapters:Mode"] == "fake")
+if (adapterMode == "fake")
 {
-    // Dane demonstracyjne w pamięci – bez dostępu do USOS/Platona.
+    // Dane demonstracyjne w pamięci – bez dostępu do USOS/Platona (współdzielone przez wszystkich użytkowników).
     builder.Services.AddFakeVusosServices();
 }
-// else: orchestrator rejestruje tu prawdziwe Vusos.Core (AddVusosCore + ISecureStore/IConnectivity/IAppPaths + IConnectFlows).
+else
+{
+    builder.Services.AddVusosPerUserCore(builder.Configuration);
+}
+
+var server = builder.Configuration.GetSection("Server").Get<ServerOptions>() ?? new ServerOptions();
+if (server.UseForwardedHeaders)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(o =>
+    {
+        o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto | ForwardedHeaders.XForwardedHost;
+        o.KnownIPNetworks.Clear();
+        o.KnownProxies.Clear();
+    });
+}
 
 var app = builder.Build();
+
+if (server.UseForwardedHeaders) app.UseForwardedHeaders();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -32,34 +59,15 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
-if (!app.Environment.IsDevelopment()) app.UseHttpsRedirection();
+if (!app.Environment.IsDevelopment() && server.RedirectToHttps) app.UseHttpsRedirection();
 
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseLoginRedirect(app.Configuration);
 app.UseAntiforgery();
 
 app.MapStaticAssets();
-
-// Pobrane materiały (otwieranie plików z dysku serwera w przeglądarce). Token wystawia JsExternalOpener.
-app.MapGet("/dl/{token}", (string token, HttpContext http) =>
-{
-    var dp = http.RequestServices.GetRequiredService<IDataProtectionProvider>();
-    var paths = http.RequestServices.GetRequiredService<IAppPaths>();
-    string path;
-    try
-    {
-        path = dp.CreateProtector(JsExternalOpener.Purpose).ToTimeLimitedDataProtector().Unprotect(token);
-    }
-    catch (Exception)
-    {
-        return Results.NotFound();
-    }
-
-    var root = Path.GetFullPath(paths.MaterialsDirectory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-    var full = Path.GetFullPath(path);
-    if (!full.StartsWith(root, StringComparison.Ordinal) || !File.Exists(full)) return Results.NotFound();
-
-    new FileExtensionContentTypeProvider().TryGetContentType(full, out var contentType);
-    return Results.File(full, contentType ?? "application/octet-stream", enableRangeProcessing: true);
-}).DisableAntiforgery();
+app.MapVusosWebHost();
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()

@@ -8,7 +8,8 @@
       "src\\Vusos.WebHost\\Vusos.WebHost.csproj",
       "tests\\Vusos.Core.Tests\\Vusos.Core.Tests.csproj",
       "tests\\Vusos.Server.Tests\\Vusos.Server.Tests.csproj",
-      "tests\\Vusos.UI.Tests\\Vusos.UI.Tests.csproj"
+      "tests\\Vusos.UI.Tests\\Vusos.UI.Tests.csproj",
+      "tests\\Vusos.WebHost.Tests\\Vusos.WebHost.Tests.csproj"
     ]
   }
 }

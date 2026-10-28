@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.DataProtection;
 using Microsoft.JSInterop;
 using Vusos.UI.Services;
 
@@ -6,14 +5,10 @@ namespace Vusos.WebHost.Hosting;
 
 /// <summary>
 /// Blazor Server: adresy otwiera przeglądarka (window.open), a pobrane pliki są serwowane przez /dl/{token}
-/// (token = zaszyfrowana, krótkotrwała ścieżka; endpoint dodatkowo sprawdza, że plik leży w katalogu materiałów).
+/// (token = zaszyfrowana, krótkotrwała ścieżka powiązana z użytkownikiem; endpoint sprawdza użytkownika i katalog materiałów).
 /// </summary>
-public sealed class JsExternalOpener(IJSRuntime js, IDataProtectionProvider dataProtection) : IExternalOpener
+public sealed class JsExternalOpener(IJSRuntime js, DownloadTokens tokens, CircuitUser user) : IExternalOpener
 {
-    public const string Purpose = "Vusos.WebHost.FileDownload";
-
-    private readonly ITimeLimitedDataProtector _protector = dataProtection.CreateProtector(Purpose).ToTimeLimitedDataProtector();
-
     public async Task OpenUrlAsync(string url)
     {
         if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https" or "mailto" or "tel"))
@@ -23,7 +18,8 @@ public sealed class JsExternalOpener(IJSRuntime js, IDataProtectionProvider data
 
     public async Task OpenFileAsync(string localPath)
     {
-        var token = _protector.Protect(localPath, TimeSpan.FromMinutes(10));
+        var hash = user.UserHash ?? throw new InvalidOperationException("Brak zalogowanego użytkownika.");
+        var token = tokens.Issue(hash, localPath);
         await js.InvokeVoidAsync("vusos.openUrl", "/dl/" + Uri.EscapeDataString(token));
     }
 }

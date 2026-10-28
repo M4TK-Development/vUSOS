@@ -1,0 +1,22 @@
+@inject NavigationManager Nav
+@inject ToastService Toasts
+
+@code {
+    // Wyniki przekierowań z serwera (callback USOS, błąd logowania Entra) przychodzą w adresie: ?connected=usos / ?error=…
+    // Pokazujemy je jako toast i czyścimy adres. UI nie wymaga zmian – ToastService jest wspólny dla układów.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        var query = System.Web.HttpUtility.ParseQueryString(new Uri(Nav.Uri).Query);
+        var connected = query["connected"];
+        var error = query["error"];
+        if (string.IsNullOrEmpty(connected) && string.IsNullOrEmpty(error)) return;
+
+        await Task.Delay(400); // układ (z komponentem Toasts) musi zdążyć się wyrenderować
+        if (!string.IsNullOrEmpty(connected))
+            Toasts.Success(connected switch { "usos" => "Połączono z USOS.", "platon" => "Połączono z Platonem.", _ => "Połączono." });
+        if (!string.IsNullOrEmpty(error))
+            Toasts.Error(error);
+        Nav.NavigateTo(Nav.GetUriWithQueryParameters(new Dictionary<string, object?> { ["connected"] = null, ["error"] = null }), replace: true);
+    }
+}
