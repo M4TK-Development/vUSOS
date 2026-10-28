@@ -73,9 +73,9 @@ public class BackgroundSyncCoordinatorTests
         public int Runs;
         public Task ProcessQueueAsync(CancellationToken ct = default) { Interlocked.Increment(ref Runs); return Task.CompletedTask; }
         public IObservable<DownloadProgress> Progress => throw new NotSupportedException();
-        public Task<IReadOnlyList<Offline.MaterialRecord>> ListAsync(string? courseId = null, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<Offline.MaterialRecord?> FindAsync(string remoteUrl, CancellationToken ct = default) => throw new NotSupportedException();
-        public Task<Offline.MaterialRecord> EnqueueAsync(string courseId, LmsModule module, LmsFile file, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<IReadOnlyList<Vusos.Core.Offline.MaterialRecord>> ListAsync(string? courseId = null, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Vusos.Core.Offline.MaterialRecord?> FindAsync(string remoteUrl, CancellationToken ct = default) => throw new NotSupportedException();
+        public Task<Vusos.Core.Offline.MaterialRecord> EnqueueAsync(string courseId, LmsModule module, LmsFile file, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<int> EnqueueCourseAsync(string courseId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task RemoveAsync(string materialId, CancellationToken ct = default) => throw new NotSupportedException();
         public Task<long> GetTotalSizeAsync(CancellationToken ct = default) => throw new NotSupportedException();

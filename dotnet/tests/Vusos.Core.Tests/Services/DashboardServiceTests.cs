@@ -6,7 +6,7 @@ namespace Vusos.Core.Tests.Services;
 
 public class DashboardServiceTests
 {
-    private readonly FakeClock _clock = new() { Now = new DateTimeOffset(2026, 10, 28, 22, 30, 0, TimeSpan.Zero) }; // 23:30 w Warszawie
+    private readonly FakeClock _clock = new() { Now = new DateTimeOffset(2026, 10, 28, 23, 30, 0, TimeSpan.Zero) }; // 00:30 następnego dnia w Warszawie
     private readonly SyncStatus _sync = new();
     private readonly FakeUsosAdapter _usos = new();
     private readonly FakePlatonAdapter _platon = new();
@@ -78,7 +78,7 @@ public class DashboardServiceTests
     {
         Seed();
         await Create().GetAsync();
-        // 22:30 UTC 28.10 to już 29.10 w Warszawie (CET)
+        // 23:30 UTC 28.10 to już 29.10 w Warszawie (CET)
         Assert.Contains("GetTimetable:2026-10-29", _usos.Calls);
     }
 
