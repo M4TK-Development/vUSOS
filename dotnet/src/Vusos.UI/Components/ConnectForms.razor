@@ -5,7 +5,12 @@
 @if (Target == SourceSystem.Usos)
 {
     <Collapsible Title="Tryb awaryjny (cookies)">
-        <p class="muted small">Jeśli USOS API jest niedostępne: zaloguj się do USOSweb w przeglądarce i wklej tutaj zawartość nagłówka <code>Cookie</code> sesji.</p>
+        <p class="muted small">Gdy USOS API nie jest dostępne (brak consumer key albo uczelnia go nie wystawia), aplikacja może czytać USOSweb przez Twoją sesję przeglądarki.</p>
+        <ol class="steps small">
+            <li>Zaloguj się do USOSweb w tej przeglądarce.</li>
+            <li>Na stronie USOSweb naciśnij <kbd>F12</kbd> → zakładka <em>Application</em> (Chrome/Edge) lub <em>Storage</em> (Firefox) → <em>Cookies</em>.</li>
+            <li>Wklej poniżej cookies w formie <code>nazwa=wartość; nazwa2=wartość2</code> (co najmniej <code>PHPSESSID</code>; wszystkie cookies domeny też są w porządku).</li>
+        </ol>
         <textarea class="input mono" rows="3" @bind="_usosCookies" @bind:event="oninput" placeholder="PHPSESSID=…; …" aria-label="Cookies USOSweb"></textarea>
         <button type="button" class="btn" disabled="@(Busy("usos-cookies") || string.IsNullOrWhiteSpace(_usosCookies))"
                 @onclick="SubmitUsosCookies">Zapisz cookies</button>
@@ -16,9 +21,10 @@ else
 {
     <Collapsible Title="Wklej token (jeśli automatyczne połączenie nie działa)">
         <ol class="steps small">
-            <li>Otwórz Platon w przeglądarce i zaloguj się kontem uczelni (M365).</li>
-            <li>Po zalogowaniu przeglądarka spróbuje otworzyć adres zaczynający się od <code>vusos://token=…</code> (lub <code>moodlemobile://token=…</code>) – zobaczysz błąd.</li>
-            <li>Skopiuj ten adres w całości, wklej go poniżej i zatwierdź.</li>
+            <li>Użyj przycisku „Zaloguj przez Platon” i zaloguj się kontem uczelni (M365).</li>
+            <li>Jeśli po zalogowaniu nie wrócisz do aplikacji, a przeglądarka pokaże błąd z adresem <code>moodlemobile://token=…</code> (lub <code>vusos://token=…</code>), skopiuj ten adres w całości.</li>
+            <li>Gdy adresu nie widać: <kbd>F12</kbd> → <em>Network</em>, wpis <code>launch.php</code>, nagłówek odpowiedzi <code>Location</code>.</li>
+            <li>Wklej adres poniżej i zatwierdź.</li>
         </ol>
         <textarea class="input mono" rows="3" @bind="_platonToken" @bind:event="oninput" placeholder="vusos://token=…" aria-label="Adres z tokenem"></textarea>
         <button type="button" class="btn" disabled="@(Busy("platon-token") || string.IsNullOrWhiteSpace(_platonToken))"

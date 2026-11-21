@@ -122,6 +122,39 @@ public static class WebHostEndpoints
                 return ConnectError(e.Message);
             }
         }).DisableAntiforgery();
+        MapPlatonCallback(app);
+    }
+
+    /// <summary>Powrót z launch.php Platona: query ma postać <c>?s://token=BASE64</c> (patrz WebConnectFlows.PlatonCallbackScheme).</summary>
+    private static void MapPlatonCallback(WebApplication app)
+    {
+        app.MapGet("/connect/platon/callback", async (HttpContext http) =>
+        {
+            var logger = http.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("Vusos.WebHost.Connect");
+            var userId = UserIdentity.GetUserId(http.User);
+            if (userId is null)
+                return Results.LocalRedirect("/auth/login?returnUrl=" + Uri.EscapeDataString(http.Request.Path + http.Request.QueryString));
+
+            var factory = http.RequestServices.GetService<UserCoreFactory>();
+            if (factory is null) return ConnectError("Połączenie z Platonem jest niedostępne w trybie Adapters:Mode=fake.");
+
+            var raw = http.Request.QueryString.Value ?? "";
+            var idx = raw.IndexOf("token=", StringComparison.OrdinalIgnoreCase);
+            if (idx < 0) return ConnectError("Platon nie zwrócił tokenu. Jeśli administrator wymusił schemat aplikacji mobilnej, użyj opcji „Wklej token”.");
+            var token = Uri.UnescapeDataString(raw[(idx + "token=".Length)..]);
+            var amp = token.IndexOf('&');
+            if (amp >= 0) token = token[..amp];
+            try
+            {
+                await factory.GetOrCreate(userId).Get<PlatonConnectFlow>().ConnectWithTokenAsync(token, http.RequestAborted);
+                return Results.LocalRedirect("/ustawienia?connected=platon");
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogWarning(e, "Callback Platona nie powiódł się");
+                return ConnectError(e.Message);
+            }
+        }).DisableAntiforgery();
     }
 
     private static IResult ConnectError(string message)

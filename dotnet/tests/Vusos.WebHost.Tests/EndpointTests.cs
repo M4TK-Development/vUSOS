@@ -142,16 +142,39 @@ public sealed class ConnectFlowTests : IDisposable
     }
 
     [Fact]
-    public async Task Live_mode_platon_start_asks_to_paste_the_token()
+    public void Live_mode_platon_callback_scheme_points_back_to_this_host()
     {
         using var scope = _live.CircuitScope(Emails.Anna);
-        var flows = scope.ServiceProvider.GetRequiredService<Vusos.UI.Services.IConnectFlows>();
+        var flows = (Vusos.WebHost.Hosting.WebConnectFlows)scope.ServiceProvider.GetRequiredService<Vusos.UI.Services.IConnectFlows>();
 
-        var ex = await Assert.ThrowsAsync<NotSupportedException>(flows.StartPlatonAsync);
+        var launch = scope.ServiceProvider.GetRequiredService<Vusos.Core.Hosting.PlatonConnectFlow>().BuildLaunchUrl(flows.PlatonCallbackScheme);
 
-        Assert.StartsWith("W przeglądarce wklej token z launch.php", ex.Message);
-        Assert.Contains("launch.php?service=moodle_mobile_app", ex.Message);
-        Assert.Contains("urlscheme=moodlemobile", ex.Message);
+        Assert.Contains("launch.php?service=moodle_mobile_app", launch);
+        Assert.Contains("urlscheme=" + Uri.EscapeDataString(flows.PlatonCallbackScheme), launch);
+        Assert.EndsWith("/connect/platon/callback?s", flows.PlatonCallbackScheme);
+    }
+
+    [Fact]
+    public async Task Platon_callback_with_token_connects_and_redirects()
+    {
+        var client = await _mock.SignedInClientAsync(Emails.Anna);
+        var b64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes("1:::0123456789abcdef0123456789abcdef:::ffffffffffffffffffffffffffffffff"));
+
+        var response = await client.GetAsync("/connect/platon/callback?s://token=" + b64);
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.Equal("/ustawienia?connected=platon", response.Headers.Location!.ToString());
+    }
+
+    [Fact]
+    public async Task Platon_callback_without_token_redirects_with_error()
+    {
+        var client = await _mock.SignedInClientAsync(Emails.Anna);
+
+        var response = await client.GetAsync("/connect/platon/callback?s");
+
+        Assert.Equal(HttpStatusCode.Redirect, response.StatusCode);
+        Assert.StartsWith("/ustawienia?error=", response.Headers.Location!.ToString());
     }
 
     [Fact]

@@ -17,14 +17,16 @@ public sealed class WebConnectFlows(ICurrentUserCore user, NavigationManager nav
 {
     public const string PlatonPasteMessage = "W przeglądarce wklej token z launch.php";
 
-    public string UsosCallbackUrl
-    {
-        get
-        {
-            var baseUrl = string.IsNullOrWhiteSpace(server.Value.PublicUrl) ? navigation.BaseUri : server.Value.PublicUrl;
-            return baseUrl.TrimEnd('/') + "/connect/usos/callback";
-        }
-    }
+    private string BaseUrl => (string.IsNullOrWhiteSpace(server.Value.PublicUrl) ? navigation.BaseUri : server.Value.PublicUrl).TrimEnd('/');
+
+    public string UsosCallbackUrl => BaseUrl + "/connect/usos/callback";
+
+    /// <summary>
+    /// Moodle składa adres powrotu jako <c>{urlscheme}://token=BASE64</c>. Podając jako „schemat” pełny adres naszego
+    /// callbacku z otwartym query, dostajemy <c>https://host/connect/platon/callback?s://token=BASE64</c>, czyli zwykłe
+    /// przekierowanie HTTP do nas. TODO(verify): działa, o ile administrator nie ustawił <c>forcedurlscheme</c>.
+    /// </summary>
+    public string PlatonCallbackScheme => BaseUrl + "/connect/platon/callback?s";
 
     public async Task StartUsosAsync()
     {
@@ -53,11 +55,9 @@ public sealed class WebConnectFlows(ICurrentUserCore user, NavigationManager nav
             return;
         }
 
-        // Ustawienia pokazują komunikat wyjątku pod kartą Platona – to jest cała „instrukcja” dla wersji przeglądarkowej.
-        var launch = sp.GetRequiredService<PlatonConnectFlow>().BuildLaunchUrl("moodlemobile");
-        throw new NotSupportedException(
-            $"{PlatonPasteMessage}: otwórz {launch} w nowej karcie, zaloguj się kontem uczelni, skopiuj adres moodlemobile://token=… " +
-            "(przeglądarka nie potrafi go otworzyć, ale pokaże go w pasku adresu) i wklej go w polu „Wklej token” poniżej.");
+        // Przeglądarka nie złapie schematu moodlemobile://, więc powrót z launch.php kierujemy na nasz endpoint HTTP.
+        var launch = sp.GetRequiredService<PlatonConnectFlow>().BuildLaunchUrl(PlatonCallbackScheme);
+        navigation.NavigateTo(launch, forceLoad: true);
     }
 
     public Task SubmitPlatonTokenAsync(string pasted)
